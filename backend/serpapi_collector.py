@@ -138,6 +138,13 @@ DISTANT_LOCALITIES = [
 DISTANT_LOCALITY_PATTERNS = [(name, re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)) for name in DISTANT_LOCALITIES]
 
 
+# Words that describe a kind of place rather than name one.
+PLACE_TYPE_WORDS = {
+    "lake", "road", "main", "cross", "layout", "nagar", "stage", "phase", "block", "sector",
+    "junction", "circle", "extension", "ring", "outer", "inner", "street", "lane", "colony", "city",
+}
+
+
 def is_distant_story(text: str, hyperlocal: str, corridor: str | None) -> bool:
     """True when a story names a distant hub but neither the target nor its corridor.
 
@@ -147,6 +154,13 @@ def is_distant_story(text: str, hyperlocal: str, corridor: str | None) -> bool:
     target = f"{hyperlocal} {corridor or ''}".lower()
     text_lower = text.lower()
     if any(t.lower() in text_lower for t in (hyperlocal, corridor) if t and len(t) > 3):
+        return False
+    # Also match the core locality word of a longer Maps name ("Bellandur Lake" -> "Bellandur").
+    core_words = {
+        w for w in re.findall(r"[a-z]+", target)
+        if len(w) > 3 and w not in PLACE_TYPE_WORDS and w not in GENERIC_ADDRESS_PARTS
+    }
+    if any(re.search(rf"\b{re.escape(w)}\b", text_lower) for w in core_words):
         return False
     return any(name not in target and pattern.search(text) for name, pattern in DISTANT_LOCALITY_PATTERNS)
 

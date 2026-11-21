@@ -250,3 +250,13 @@ def test_collector_drops_distant_story_and_keeps_bellandur(fake_get):
     urls = {s["url"] for s in result["signals"]}
     assert "https://e.com/btm" not in urls
     assert "https://e.com/bellandur" in urls
+
+
+def test_core_locality_word_matches_long_maps_name():
+    text = "Traffic jam from BTM Layout stretches to Bellandur"
+    assert collector.is_distant_story(text, "Bellandur Lake", None) is False
+
+
+def test_place_type_words_alone_do_not_match_target():
+    # "Lake"/"Road" are not the target; a BTM story that only shares them is still distant.
+    assert collector.is_distant_story("BTM Layout lake overflows onto main road", "Bellandur Lake", "Outer Ring Road") is True
