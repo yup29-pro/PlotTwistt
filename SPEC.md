@@ -52,6 +52,7 @@ Severity is assigned per intent from the sensitivities in section 1 (e.g. floodi
   - `corridor` – "Mentions locality": the locality is only in the snippet.
   - `district` – "Area-level": the locality is not found, or the source only names the city/state (Bengaluru, Bangalore, Karnataka, India).
 - Flags are sorted by tier (hyperlocal first), then severity (high first), so city-wide pieces sink to the bottom.
+- Stories that name a distant Bengaluru hub (BTM, Silk Board, Whitefield, Koramangala…) but neither the target locality nor its corridor are dropped in the collector.
 - Noise is dropped before classification: directory/index/listing pages, social posts (Facebook, Instagram, X/Twitter, LinkedIn titles or URLs), titles of five words or fewer with no friction keyword, and business openings with no friction keyword.
 - `url` is the publisher link. The frontend only renders it as a link if it starts with `http://` or `https://`.
 - Google redirect links (`google.com/goto`, `/url`, `/amp/s/`) are unwrapped from their `url`/`q` parameter before classification; a destination that is not a plain http(s) URL with a host drops the signal. Generic source labels are replaced with the publisher domain.

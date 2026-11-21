@@ -217,3 +217,36 @@ def test_typo_fix_applies_to_resolved_locality(monkeypatch):
 
 def test_typo_needs_whole_word():
     assert collector.normalize_locality_typos("Madagiri Hills") == "Madagiri Hills"
+
+
+@pytest.mark.parametrize(
+    "text, distant",
+    [
+        ("Waterlogging witnessed at BTM Layout and Silk Board junction", True),
+        ("Whitefield residents protest garbage dumping", True),
+        ("Bellandur lake froths again after heavy rain", False),
+        ("Traffic jam from Silk Board stretches to Bellandur", False),
+        ("Heavy rain lashes the city overnight", False),
+    ],
+)
+def test_distant_area_stories(text, distant):
+    assert collector.is_distant_story(text, "Bellandur", None) is distant
+
+
+def test_target_hub_is_not_distant():
+    assert collector.is_distant_story("Whitefield metro work causes jams", "Whitefield", None) is False
+
+
+def test_corridor_mention_keeps_story():
+    assert collector.is_distant_story("BTM traffic spills onto Outer Ring Road", "Bellandur", "Outer Ring Road") is False
+
+
+def test_collector_drops_distant_story_and_keeps_bellandur(fake_get):
+    fake_get["news"] = [
+        {"title": "Waterlogging witnessed at BTM Layout and Silk Board junction", "link": "https://e.com/btm"},
+        {"title": "Bellandur lake froths again after heavy rain", "link": "https://e.com/bellandur"},
+    ]
+    result = collect()
+    urls = {s["url"] for s in result["signals"]}
+    assert "https://e.com/btm" not in urls
+    assert "https://e.com/bellandur" in urls

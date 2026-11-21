@@ -129,6 +129,28 @@ def _finalize_signal(signal: Dict[str, Any]) -> Dict[str, Any] | None:
     return {**signal, "url": url, "source": source}
 
 
+# Bengaluru hubs that pull in unrelated stories when the target is elsewhere (from dc4e427).
+DISTANT_LOCALITIES = [
+    "btm", "btm layout", "silk board", "varthur", "panathur", "whitefield",
+    "electronic city", "sarjapur", "bellandur", "marathahalli", "hebbal",
+    "yelahanka", "banashankari", "koramangala", "indiranagar",
+]
+DISTANT_LOCALITY_PATTERNS = [(name, re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)) for name in DISTANT_LOCALITIES]
+
+
+def is_distant_story(text: str, hyperlocal: str, corridor: str | None) -> bool:
+    """True when a story names a distant hub but neither the target nor its corridor.
+
+    Hubs that are part of the target itself (e.g. 'Bellandur' when searching Bellandur)
+    never count as distant.
+    """
+    target = f"{hyperlocal} {corridor or ''}".lower()
+    text_lower = text.lower()
+    if any(t.lower() in text_lower for t in (hyperlocal, corridor) if t and len(t) > 3):
+        return False
+    return any(name not in target and pattern.search(text) for name, pattern in DISTANT_LOCALITY_PATTERNS)
+
+
 GENERIC_ADDRESS_PARTS = {"karnataka", "india", "bengaluru", "bangalore", "bengaluru urban", "bangalore urban"}
 POSTCODE_RE = re.compile(r"\b\d{6}\b")
 
@@ -320,7 +342,10 @@ async def collect_location_signals(
             # Log only the exception type: httpx messages can embed the request URL and api_key.
             logger.warning("SerpApi %s search (%s) failed: %s", st["engine"], st["category"], type(result).__name__)
         else:
-            collected_signals.extend(result)
+            collected_signals.extend(
+                sig for sig in result
+                if not is_distant_story(f"{sig['title']} {sig.get('snippet', '')}", clean_loc, corridor)
+            )
 
     if failed == len(search_targets):
         raise RuntimeError(f"All {failed} SerpApi searches failed")
