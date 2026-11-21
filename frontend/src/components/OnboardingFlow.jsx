@@ -316,15 +316,13 @@ export default function OnboardingFlow({ onComplete }) {
             <div>
               <div
                 style={{
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  color: '#38bdf8',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  marginBottom: '4px',
+                  fontSize: 'var(--text-xs)',
+                  color: '#7dd3fc',
+                  fontWeight: 600,
+                  marginBottom: 'var(--space-1)',
                 }}
               >
-                DEMO PROFILE
+                Demo profile
               </div>
               <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#ffffff' }}>
                 Start the radar demo
@@ -351,8 +349,7 @@ export default function OnboardingFlow({ onComplete }) {
                     padding: '10px 14px',
                     borderRadius: '8px',
                     color: '#f8fafc',
-                    fontSize: '13.5px',
-                    outline: 'none',
+                    fontSize: 'var(--text-base)',
                   }}
                 />
               </div>
@@ -431,8 +428,8 @@ export default function OnboardingFlow({ onComplete }) {
             }}
           />
           <div>
-            <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: '#94a3b8' }}>
-              LIVE GLOBAL SATELLITE FEED
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+              Interactive globe
             </div>
             <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc' }}>
               Drag globe to rotate 3D view

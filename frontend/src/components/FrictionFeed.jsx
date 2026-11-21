@@ -10,7 +10,10 @@ import {
   ChevronRight,
   ExternalLink,
   Flame,
-  Filter
+  Filter,
+  Truck,
+  MapPin,
+  Info
 } from 'lucide-react';
 
 const CATEGORY_META = {
@@ -32,10 +35,33 @@ const CATEGORY_META = {
     label: 'Civic & Neighbor Friction',
     shortLabel: 'Civic & Community',
     icon: Users,
-    color: '#f97316',
-    bg: 'rgba(249, 115, 22, 0.1)',
+    color: '#fb923c',
+    bg: 'rgba(249, 115, 22, 0.12)',
+  },
+  access_infrastructure: {
+    label: 'Access & Infrastructure',
+    shortLabel: 'Access',
+    icon: Truck,
+    color: '#facc15',
+    bg: 'rgba(250, 204, 21, 0.1)',
   },
 };
+
+const VERDICT_COLOR = { High: 'var(--risk-high)', Moderate: 'var(--risk-med)', Low: 'var(--risk-low)' };
+const SEVERITY_STYLE = {
+  high: { color: '#fca5a5', bg: 'rgba(239, 68, 68, 0.16)', bar: 'var(--risk-high)' },
+  medium: { color: '#fcd34d', bg: 'rgba(245, 158, 11, 0.16)', bar: 'var(--risk-med)' },
+  low: { color: '#6ee7b7', bg: 'rgba(16, 185, 129, 0.14)', bar: 'var(--risk-low)' },
+};
+
+// Publisher domain shown on each card, e.g. "thehindu.com".
+function sourceDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
 
 export default function FrictionFeed({
   analysis,
@@ -70,13 +96,12 @@ export default function FrictionFeed({
             animation: 'spin 1s linear infinite',
           }}
         />
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>
-            Triangulating Land Friction...
+        <div role="status" aria-live="polite" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-main)' }}>
+            Scanning this site…
           </div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-            Cross-referencing satellite drainage buffers, court gazettes & civic forums
+          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-dim)', marginTop: 'var(--space-1)' }}>
+            Checking news, civic sources and map data near the pin
           </div>
         </div>
       </div>
@@ -94,17 +119,17 @@ export default function FrictionFeed({
           alignItems: 'center',
           justifyContent: 'center',
           padding: '32px',
-          color: '#64748b',
+          color: 'var(--text-dim)',
           textAlign: 'center',
-          gap: '12px',
+          gap: 'var(--space-3)',
         }}
       >
         <ShieldAlert size={40} color="#334155" />
-        <div style={{ fontSize: '16px', fontWeight: 600, color: '#94a3b8' }}>
-          Radar In Standby Mode
+        <div style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--text-main)' }}>
+          Pick a site to scan
         </div>
-        <div style={{ fontSize: '13px', maxWidth: '320px', lineHeight: 1.5 }}>
-          Select a preset or click on the map, then hit <strong>Scan Radar</strong> to compute site friction.
+        <div style={{ fontSize: 'var(--text-sm)', maxWidth: '320px', lineHeight: 1.5 }}>
+          Choose a preset or click the map, then press <strong style={{ color: 'var(--text-main)' }}>Scan this site</strong>.
         </div>
       </div>
     );
@@ -167,7 +192,14 @@ export default function FrictionFeed({
       label: 'Civic Friction',
       count: flags.filter((f) => f.category === 'civic_neighbor_friction').length,
     },
+    {
+      id: 'access_infrastructure',
+      label: 'Access',
+      count: flags.filter((f) => f.category === 'access_infrastructure').length,
+    },
   ];
+  const hasScore = typeof analysis.friction_score === 'number';
+  const verdictColor = VERDICT_COLOR[analysis.verdict] || 'var(--text-main)';
 
   return (
     <div
@@ -191,100 +223,75 @@ export default function FrictionFeed({
           gap: '14px',
         }}
       >
-        {/* Friction Score (0-100) with verdict */}
-        {typeof analysis?.friction_score === 'number' && (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-            <span
-              style={{
-                fontSize: '44px',
-                fontWeight: 800,
-                lineHeight: 1,
-                fontFamily: 'var(--font-mono)',
-                color: { High: '#ef4444', Moderate: '#f59e0b', Low: '#10b981' }[analysis.verdict] || '#f8fafc',
-              }}
-            >
-              {analysis.friction_score}
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: { High: '#ef4444', Moderate: '#f59e0b', Low: '#10b981' }[analysis.verdict] || '#cbd5e1',
-                }}
-              >
-                {analysis.verdict} friction
-              </span>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>Friction score / 100</span>
-            </div>
-          </div>
-        )}
-
-        {/* Risk Badge and Location Title */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-          <div>
+        {/* Location */}
+        <div>
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.3 }}>
+            {location}
+          </h2>
+          {analysis?.hierarchy?.display_hierarchy ? (
             <div
               style={{
-                fontSize: '11px',
-                fontFamily: 'var(--font-mono)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                color: '#64748b',
-                marginBottom: '4px',
+                fontSize: 'var(--text-xs)',
+                color: '#7dd3fc',
+                marginTop: 'var(--space-1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
               }}
             >
-              RADAR TARGET AUDIT
+              <MapPin size={12} aria-hidden="true" />
+              <span>{analysis.hierarchy.display_hierarchy}</span>
             </div>
-            <h2
-              style={{
-                fontSize: '17px',
-                fontWeight: 700,
-                color: '#f8fafc',
-                lineHeight: 1.3,
-              }}
-            >
-              {location}
-            </h2>
-            {analysis?.hierarchy?.display_hierarchy && (
-              <div
+          ) : null}
+        </div>
+
+        {/* Friction score: the focal point of the feed */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-4)',
+            padding: 'var(--space-4)',
+            borderRadius: '12px',
+            background: riskMeta.bg,
+            border: `1px solid ${riskMeta.border}`,
+          }}
+        >
+          {hasScore ? (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-1)' }}>
+              <span
                 style={{
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  color: '#38bdf8',
-                  marginTop: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
+                  fontSize: '56px',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  letterSpacing: '-0.03em',
+                  fontVariantNumeric: 'tabular-nums',
+                  color: verdictColor,
                 }}
               >
-                <span>📍 Hierarchy:</span>
-                <span>{analysis.hierarchy.display_hierarchy}</span>
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: riskMeta.bg,
-              border: `1px solid ${riskMeta.border}`,
-              color: riskMeta.color,
-              padding: '6px 12px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 700,
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '0.04em',
-              whiteSpace: 'nowrap',
-              boxShadow: `0 0 16px ${riskMeta.bg}`,
-            }}
-          >
-            <RiskIcon size={16} />
-            <span>{riskMeta.badgeText}</span>
+                {analysis.friction_score}
+              </span>
+              <span style={{ fontSize: 'var(--text-base)', color: 'var(--text-dim)', fontWeight: 600 }}>/100</span>
+            </div>
+          ) : (
+            <RiskIcon size={36} color={riskMeta.color} aria-hidden="true" />
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <span
+              style={{
+                fontSize: 'var(--text-xl)',
+                fontWeight: 700,
+                lineHeight: 1.1,
+                color: hasScore ? verdictColor : riskMeta.color,
+                textTransform: 'capitalize',
+              }}
+            >
+              {hasScore ? `${analysis.verdict} friction` : `${overall_risk || 'Unknown'} risk`}
+            </span>
+            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+              {flags.length} {flags.length === 1 ? 'signal' : 'signals'}, overall risk {overall_risk || 'unknown'}
+              {analysis.data_source === 'cache' ? ' (cached result)' : ''}
+            </span>
           </div>
         </div>
 
@@ -295,13 +302,35 @@ export default function FrictionFeed({
             borderLeft: `3px solid ${riskMeta.color}`,
             borderRadius: '4px 8px 8px 4px',
             padding: '10px 14px',
-            fontSize: '13px',
+            fontSize: 'var(--text-sm)',
             lineHeight: 1.5,
             color: '#cbd5e1',
           }}
         >
           {summary}
         </div>
+
+        {/* Degraded: some sources failed (demo data has its own banner) */}
+        {analysis.degraded && analysis.data_source !== 'demo' ? (
+          <div
+            role="status"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 'var(--space-2)',
+              fontSize: 'var(--text-sm)',
+              lineHeight: 1.45,
+              color: '#cbd5e1',
+              background: 'rgba(148, 163, 184, 0.08)',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              borderRadius: '8px',
+              padding: 'var(--space-2) var(--space-3)',
+            }}
+          >
+            <Info size={15} color="#94a3b8" style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
+            <span>Some sources didn't respond, so this scan may be incomplete. Scan again later for a fuller picture.</span>
+          </div>
+        ) : null}
 
         {/* Category Filter Pills */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -311,16 +340,17 @@ export default function FrictionFeed({
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
+                aria-pressed={active}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
                   background: active ? '#2563eb' : 'rgba(255, 255, 255, 0.05)',
                   border: `1px solid ${active ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)'}`,
-                  color: active ? '#ffffff' : '#94a3b8',
-                  padding: '5px 10px',
+                  color: active ? '#ffffff' : '#cbd5e1',
+                  padding: '6px 10px',
                   borderRadius: '6px',
-                  fontSize: '11px',
+                  fontSize: 'var(--text-xs)',
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.15s',
@@ -360,16 +390,13 @@ export default function FrictionFeed({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            fontSize: '11px',
-            fontFamily: 'var(--font-mono)',
-            color: '#64748b',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            paddingBottom: '4px',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--text-dim)',
+            paddingBottom: 'var(--space-1)',
           }}
         >
-          <span>DETECTED FRICTION POINTS ({filteredFlags.length})</span>
-          <span>CLICK TO INSPECT RECEIPT</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Friction points ({filteredFlags.length})</span>
+          <span>Select a card to see its source</span>
         </div>
 
         {filteredFlags.map((flag) => {
@@ -381,23 +408,28 @@ export default function FrictionFeed({
           };
           const CatIcon = catMeta.icon;
 
-          const severityColor =
-            flag.severity === 'high'
-              ? 'var(--risk-high)'
-              : flag.severity === 'medium'
-              ? 'var(--risk-med)'
-              : 'var(--risk-low)';
+          const sev = SEVERITY_STYLE[flag.severity] || SEVERITY_STYLE.low;
+          const domain = sourceDomain(flag.url);
 
           const isSelected = selectedFlagId === flag.id;
 
           return (
             <div
               key={flag.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`${flag.severity} severity: ${flag.headline}. View source.`}
               onClick={() => onSelectFlag(flag)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectFlag(flag);
+                }
+              }}
               style={{
                 background: isSelected ? 'var(--bg-card-hover)' : 'var(--bg-card)',
                 border: `1px solid ${isSelected ? '#38bdf8' : 'var(--border-subtle)'}`,
-                borderLeft: `4px solid ${severityColor}`,
+                borderLeft: `4px solid ${sev.bar}`,
                 borderRadius: '8px',
                 padding: '14px',
                 cursor: 'pointer',
@@ -465,31 +497,32 @@ export default function FrictionFeed({
                         fontWeight: 600,
                       }}
                     >
-                      📍 {flag.distance_label}
+                      {flag.distance_label}
                     </span>
                   )}
                 </div>
 
-                <div
+                <span
                   style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '10px',
+                    fontSize: 'var(--text-xs)',
                     fontWeight: 700,
-                    textTransform: 'uppercase',
-                    color: severityColor,
-                    letterSpacing: '0.05em',
+                    color: sev.color,
+                    background: sev.bg,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    textTransform: 'capitalize',
                   }}
                 >
-                  {flag.severity} SEVERITY
-                </div>
+                  {flag.severity} severity
+                </span>
               </div>
 
               {/* Headline */}
               <h3
                 style={{
-                  fontSize: '14px',
+                  fontSize: 'var(--text-base)',
                   fontWeight: 700,
-                  color: '#f8fafc',
+                  color: 'var(--text-main)',
                   lineHeight: 1.35,
                 }}
               >
@@ -499,9 +532,9 @@ export default function FrictionFeed({
               {/* Plain English Impact */}
               <p
                 style={{
-                  fontSize: '12.5px',
+                  fontSize: 'var(--text-sm)',
                   lineHeight: 1.5,
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                 }}
               >
                 {flag.explanation}
@@ -537,15 +570,17 @@ export default function FrictionFeed({
                 }}
               >
                 <span
+                  title={flag.source_title}
                   style={{
-                    color: '#64748b',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    maxWidth: '220px',
+                    maxWidth: '240px',
+                    color: '#e2e8f0',
+                    fontWeight: 600,
                   }}
                 >
-                  Source: {flag.source_title}
+                  {domain || 'Source'}
                 </span>
 
                 <div
@@ -553,11 +588,11 @@ export default function FrictionFeed({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    color: '#38bdf8',
+                    color: '#7dd3fc',
                     fontWeight: 600,
                   }}
                 >
-                  <span>Inspect Receipt</span>
+                  <span>View source</span>
                   <ChevronRight size={14} />
                 </div>
               </div>
@@ -565,18 +600,52 @@ export default function FrictionFeed({
           );
         })}
 
-        {filteredFlags.length === 0 && (
+        {filteredFlags.length === 0 ? (
           <div
             style={{
-              padding: '32px 16px',
+              padding: 'var(--space-6) var(--space-4)',
               textAlign: 'center',
-              color: '#64748b',
-              fontSize: '13px',
+              color: 'var(--text-dim)',
+              fontSize: 'var(--text-sm)',
+              lineHeight: 1.5,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
             }}
           >
-            No friction points detected in this category.
+            {flags.length === 0 ? (
+              <>
+                <ShieldCheck size={28} color="var(--text-dim)" aria-hidden="true" />
+                <span style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: 'var(--text-base)' }}>
+                  No public signals found for this site
+                </span>
+                <span style={{ maxWidth: '300px' }}>
+                  That isn't proof the site is clean. Check drainage, zoning and access on the ground.
+                </span>
+              </>
+            ) : (
+              <>
+                <span>No signals in this category.</span>
+                <button
+                  onClick={() => setActiveCategory('All')}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    color: 'var(--text-main)',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Show all signals
+                </button>
+              </>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -203,8 +203,8 @@ export default function App() {
                 RADAR v1.0
               </span>
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>
-              Land & Civic Friction Radar // Beyond 9TO5 Buildathon
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-dim)' }}>
+              Land and civic friction radar for Bengaluru sites
             </div>
           </div>
         </div>
@@ -235,13 +235,12 @@ export default function App() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              fontSize: '11px',
-              fontFamily: 'var(--font-mono)',
+              fontSize: 'var(--text-xs)',
               background: 'rgba(255, 255, 255, 0.04)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               padding: '4px 10px',
               borderRadius: '6px',
-              color: backendConnected ? '#10b981' : '#94a3b8',
+              color: backendConnected ? '#6ee7b7' : '#cbd5e1',
             }}
           >
             {backendConnected ? (
@@ -255,7 +254,7 @@ export default function App() {
                     boxShadow: '0 0 8px #10b981',
                   }}
                 />
-                <span>API ONLINE (8000)</span>
+                <span>API online</span>
               </>
             ) : (
               <>
@@ -267,14 +266,16 @@ export default function App() {
                     background: '#eab308',
                   }}
                 />
-                <span>MOCK / OFFLINE MODE</span>
+                <span>API offline</span>
               </>
             )}
           </div>
 
           {/* Sample Data Toggle Switch */}
           <label
+            className="focus-within-ring"
             style={{
+              position: 'relative',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
@@ -287,30 +288,32 @@ export default function App() {
               }`,
               padding: '4px 10px',
               borderRadius: '6px',
-              fontSize: '12px',
+              fontSize: 'var(--text-xs)',
               fontWeight: 500,
-              color: useSampleData ? '#38bdf8' : '#94a3b8',
+              color: useSampleData ? '#7dd3fc' : '#cbd5e1',
               transition: 'all 0.15s',
             }}
           >
             <Database size={14} />
-            <span>Sample Data Only</span>
+            <span>Sample data {useSampleData ? 'on' : 'off'}</span>
             <input
               type="checkbox"
+              role="switch"
+              aria-label="Use sample data only"
               checked={useSampleData}
               onChange={(e) => setUseSampleData(e.target.checked)}
-              style={{ display: 'none' }}
+              style={{ position: 'absolute', opacity: 0, width: '1px', height: '1px', pointerEvents: 'none' }}
             />
           </label>
 
           {/* Logout / Intro Walkthrough Button */}
           <button
             onClick={handleLogout}
-            title="Return to Presentation / Logout"
+            title="Back to the intro"
             style={{
               background: 'transparent',
               border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: '#94a3b8',
+              color: '#cbd5e1',
               padding: '5px 10px',
               borderRadius: '6px',
               fontSize: '12px',
@@ -330,20 +333,31 @@ export default function App() {
         <div
           role="status"
           style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            borderBottom: '1px solid rgba(239, 68, 68, 0.35)',
-            color: '#fecaca',
+            background: 'rgba(96, 165, 250, 0.12)',
+            borderBottom: '1px solid rgba(96, 165, 250, 0.35)',
+            color: '#dbeafe',
             padding: '8px 20px',
-            fontSize: '12px',
+            fontSize: 'var(--text-sm)',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             zIndex: 1050,
           }}
         >
-          <AlertCircle size={15} color="#ef4444" />
+          <Info size={15} color="#93c5fd" aria-hidden="true" />
           <span>
-            <strong>DEMO DATA</strong> &mdash; these flags are curated sample data, not live search results for this site.
+            <strong
+              style={{
+                color: '#ffffff',
+                background: 'rgba(96, 165, 250, 0.3)',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                marginRight: '6px',
+              }}
+            >
+              Demo
+            </strong>
+            These flags are curated sample data, not live search results for this site.
           </span>
         </div>
       )}
@@ -351,12 +365,13 @@ export default function App() {
       {/* Optional Toast / Warning Alert */}
       {errorNotice && (
         <div
+          role="status"
           style={{
-            background: 'rgba(234, 179, 8, 0.15)',
+            background: 'rgba(234, 179, 8, 0.12)',
             borderBottom: '1px solid rgba(234, 179, 8, 0.3)',
-            color: '#fef08a',
+            color: '#fef3c7',
             padding: '8px 20px',
-            fontSize: '12px',
+            fontSize: 'var(--text-sm)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -369,6 +384,7 @@ export default function App() {
           </div>
           <button
             onClick={() => setErrorNotice(null)}
+            aria-label="Dismiss notice"
             style={{
               background: 'transparent',
               border: 'none',
@@ -389,7 +405,7 @@ export default function App() {
           flex: 1,
           display: 'grid',
           gridTemplateColumns: 'minmax(400px, 1fr) 520px',
-          height: 'calc(100vh - 56px)',
+          minHeight: 0,
           overflow: 'hidden',
         }}
       >

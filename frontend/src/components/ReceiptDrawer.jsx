@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   X,
   ExternalLink,
@@ -8,6 +8,7 @@ import {
   Quote,
   Building,
   CheckCircle2,
+  Info,
   Clock,
   Hash,
   Share2
@@ -15,7 +16,19 @@ import {
 
 const isHttpUrl = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
 
+function sourceDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 export default function ReceiptDrawer({ flag, onClose }) {
+  const closeRef = useRef(null);
+  useEffect(() => {
+    if (flag && closeRef.current) closeRef.current.focus();
+  }, [flag]);
   // Close drawer on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -43,6 +56,9 @@ export default function ReceiptDrawer({ flag, onClose }) {
       ? 'var(--risk-med-bg)'
       : 'var(--risk-low-bg)';
 
+  const domain = sourceDomain(flag.url);
+  const hasLink = isHttpUrl(flag.url);
+
   return (
     <div
       style={{
@@ -67,6 +83,9 @@ export default function ReceiptDrawer({ flag, onClose }) {
 
       {/* Slide-over Drawer Panel */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="receipt-title"
         style={{
           position: 'relative',
           width: '100%',
@@ -118,28 +137,28 @@ export default function ReceiptDrawer({ flag, onClose }) {
             <div>
               <div
                 style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: '#64748b',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 700,
+                  color: 'var(--text-main)',
                 }}
               >
-                EVIDENCE RECEIPT // PROOF TRAIL
+                Source receipt
               </div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
-                Ref ID: #{flag.id}
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-dim)' }}>
+                {domain || 'Unknown source'}
               </div>
             </div>
           </div>
 
           <button
+            ref={closeRef}
             onClick={onClose}
+            aria-label="Close source receipt"
             style={{
               background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '8px',
-              color: '#94a3b8',
+              color: '#cbd5e1',
               padding: '6px',
               cursor: 'pointer',
               display: 'flex',
@@ -172,13 +191,12 @@ export default function ReceiptDrawer({ flag, onClose }) {
                 border: `1px solid ${severityColor}`,
                 padding: '4px 10px',
                 borderRadius: '6px',
-                fontSize: '11px',
+                fontSize: 'var(--text-xs)',
                 fontWeight: 700,
-                fontFamily: 'var(--font-mono)',
-                textTransform: 'uppercase',
+                textTransform: 'capitalize',
               }}
             >
-              {flag.severity} SEVERITY
+              {flag.severity} severity
             </span>
 
             <span
@@ -188,17 +206,33 @@ export default function ReceiptDrawer({ flag, onClose }) {
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 padding: '4px 10px',
                 borderRadius: '6px',
-                fontSize: '11px',
+                fontSize: 'var(--text-xs)',
                 fontWeight: 600,
+                textTransform: 'capitalize',
               }}
             >
-              Category: {flag.category.replace(/_/g, ' ')}
+              {flag.category.replace(/_/g, ' ')}
             </span>
+            {flag.distance_label ? (
+              <span
+                style={{
+                  color: '#7dd3fc',
+                  border: '1px solid rgba(125, 211, 252, 0.3)',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                }}
+              >
+                {flag.distance_label}
+              </span>
+            ) : null}
           </div>
 
           {/* Risk Title / Headline */}
           <div>
             <h2
+              id="receipt-title"
               style={{
                 fontSize: '18px',
                 fontWeight: 700,
@@ -224,15 +258,12 @@ export default function ReceiptDrawer({ flag, onClose }) {
           >
             <div
               style={{
-                fontSize: '11px',
-                fontFamily: 'var(--font-mono)',
-                color: '#38bdf8',
+                fontSize: 'var(--text-xs)',
+                color: '#7dd3fc',
                 fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
               }}
             >
-              PLAIN-ENGLISH OPERATIONAL IMPACT
+              What this means for the site
             </div>
             <p
               style={{
@@ -262,33 +293,21 @@ export default function ReceiptDrawer({ flag, onClose }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8' }}>
               <Quote size={18} />
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                }}
-              >
-                VERIFIED SOURCE QUOTE EXTRACT
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
+                Quote from the source
               </span>
             </div>
 
             <blockquote
               style={{
-                fontSize: '13.5px',
-                lineHeight: 1.6,
+                fontSize: '15px',
+                lineHeight: 1.65,
                 color: '#f1f5f9',
                 fontStyle: 'normal',
-                fontFamily: 'var(--font-mono)',
-                background: 'rgba(56, 189, 248, 0.05)',
-                padding: '12px 14px',
-                borderRadius: '6px',
-                border: '1px dashed rgba(56, 189, 248, 0.2)',
+                fontFamily: 'var(--font-sans)',
               }}
             >
-              "{flag.quote}"
+              “{flag.quote}”
             </blockquote>
 
             <div
@@ -296,13 +315,13 @@ export default function ReceiptDrawer({ flag, onClose }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontSize: '11.5px',
-                color: '#10b981',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-dim)',
                 fontWeight: 500,
               }}
             >
-              <CheckCircle2 size={14} />
-              <span>Exact string snippet verified from regulatory or reporting record</span>
+              <Info size={14} aria-hidden="true" />
+              <span>Snippet as returned by search. Open the source to read it in context.</span>
             </div>
           </div>
 
@@ -320,14 +339,12 @@ export default function ReceiptDrawer({ flag, onClose }) {
           >
             <div
               style={{
-                fontSize: '11px',
-                fontFamily: 'var(--font-mono)',
-                color: '#64748b',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-dim)',
                 fontWeight: 600,
-                textTransform: 'uppercase',
               }}
             >
-              REGULATORY GAZETTE / PUBLICATION
+              Source{domain ? `: ${domain}` : ''}
             </div>
 
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#f8fafc' }}>
@@ -336,8 +353,8 @@ export default function ReceiptDrawer({ flag, onClose }) {
 
             <div
               style={{
-                fontSize: '12px',
-                color: '#64748b',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-dim)',
                 fontFamily: 'var(--font-mono)',
                 wordBreak: 'break-all',
               }}
@@ -357,7 +374,7 @@ export default function ReceiptDrawer({ flag, onClose }) {
             gap: '12px',
           }}
         >
-          {isHttpUrl(flag.url) && (
+          {hasLink ? (
             <a
               href={flag.url}
               target="_blank"
@@ -379,9 +396,13 @@ export default function ReceiptDrawer({ flag, onClose }) {
                 transition: 'all 0.15s',
               }}
             >
-              <span>Open Source Gazette / Document</span>
-              <ExternalLink size={16} />
+              <span>Open on {domain || 'source site'}</span>
+              <ExternalLink size={16} aria-hidden="true" />
             </a>
+          ) : (
+            <span style={{ flex: 1, alignSelf: 'center', fontSize: 'var(--text-sm)', color: 'var(--text-dim)' }}>
+              No link is available for this source.
+            </span>
           )}
 
           <button

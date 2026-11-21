@@ -132,12 +132,18 @@ export default function MapCanvas({
     if (lakeBufferBreach) {
       bufferCircleRef.current = L.circle([coordinates.lat, coordinates.lng], {
         radius: 75,
-        color: '#ef4444',
-        weight: 2,
+        color: '#f87171',
+        weight: 3,
+        dashArray: '6 4',
         fillColor: '#ef4444',
-        fillOpacity: 0.15,
+        fillOpacity: 0.18,
       })
-        .bindTooltip('Inside 75 m NGT lake buffer')
+        .bindTooltip('Inside 75 m lake buffer', {
+          permanent: true,
+          direction: 'top',
+          offset: [0, -8],
+          className: 'buffer-tooltip',
+        })
         .addTo(map);
     }
 
@@ -218,14 +224,14 @@ export default function MapCanvas({
                 type="text"
                 value={selectedLocation}
                 onChange={(e) => setSelectedLocation(e.target.value)}
-                placeholder="Search target locality or landmark..."
+                placeholder="Search a locality or landmark"
+                aria-label="Site to scan"
                 style={{
                   width: '100%',
                   background: 'transparent',
                   border: 'none',
-                  outline: 'none',
                   color: '#f8fafc',
-                  fontSize: '14px',
+                  fontSize: 'var(--text-base)',
                   fontWeight: 500,
                   fontFamily: 'inherit',
                 }}
@@ -236,8 +242,8 @@ export default function MapCanvas({
             <div
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: '11px',
-                color: '#94a3b8',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-muted)',
                 background: 'rgba(255, 255, 255, 0.05)',
                 padding: '4px 8px',
                 borderRadius: '6px',
@@ -252,26 +258,26 @@ export default function MapCanvas({
             <button
               onClick={onScan}
               disabled={isLoading}
+              aria-busy={isLoading}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: isLoading
-                  ? 'var(--bg-card-alt)'
-                  : 'linear-gradient(135deg, #0284c7, #2563eb)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '8px 16px',
+                background: isLoading ? 'var(--bg-card-alt)' : '#2563eb',
+                color: isLoading ? 'var(--text-muted)' : '#ffffff',
+                border: `1px solid ${isLoading ? 'var(--border-subtle)' : '#60a5fa'}`,
+                padding: '10px 18px',
                 borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
+                fontSize: 'var(--text-base)',
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
                 cursor: isLoading ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
                 boxShadow: isLoading ? 'none' : '0 4px 14px rgba(37, 99, 235, 0.4)',
               }}
             >
               <Radar size={16} className={isLoading ? 'pulse-radar' : ''} />
-              <span>{isLoading ? 'Scanning...' : 'Scan Radar'}</span>
+              <span>{isLoading ? 'Scanning…' : 'Scan this site'}</span>
             </button>
           </div>
 
@@ -287,14 +293,12 @@ export default function MapCanvas({
           >
             <span
               style={{
-                fontSize: '11px',
-                color: '#64748b',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-dim)',
                 fontWeight: 600,
               }}
             >
-              Intent:
+              Evaluating for
             </span>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {intents.map((item) => {
@@ -304,17 +308,18 @@ export default function MapCanvas({
                   <button
                     key={item.id}
                     onClick={() => setIntent(item.id)}
+                    aria-pressed={active}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
                       background: active ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.04)',
                       border: `1px solid ${active ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
-                      color: active ? '#38bdf8' : '#94a3b8',
-                      padding: '5px 10px',
+                      color: active ? '#7dd3fc' : '#cbd5e1',
+                      padding: '6px 10px',
                       borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 500,
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: active ? 600 : 500,
                       cursor: 'pointer',
                       transition: 'all 0.15s',
                     }}
@@ -345,13 +350,14 @@ export default function MapCanvas({
               gap: '4px',
             }}
           >
-            <Sparkles size={12} color="#f59e0b" />
-            Presets:
+            <Sparkles size={12} color="#f59e0b" aria-hidden="true" />
+            Try a demo site
           </span>
           {SAMPLE_PRESETS.map((preset) => (
             <button
               key={preset.id}
               onClick={() => handlePresetClick(preset)}
+              aria-pressed={selectedLocation === preset.name}
               style={{
                 background:
                   selectedLocation === preset.name
@@ -361,10 +367,10 @@ export default function MapCanvas({
                 border: `1px solid ${
                   selectedLocation === preset.name ? '#06b6d4' : 'rgba(255, 255, 255, 0.1)'
                 }`,
-                color: selectedLocation === preset.name ? '#38bdf8' : '#e2e8f0',
-                padding: '4px 10px',
+                color: selectedLocation === preset.name ? '#7dd3fc' : '#e2e8f0',
+                padding: '6px 10px',
                 borderRadius: '6px',
-                fontSize: '11px',
+                fontSize: 'var(--text-xs)',
                 fontWeight: 500,
                 cursor: 'pointer',
                 transition: 'all 0.15s',
@@ -391,17 +397,15 @@ export default function MapCanvas({
           border: '1px solid rgba(255, 255, 255, 0.08)',
           borderRadius: '6px',
           padding: '4px 10px',
-          fontSize: '11px',
-          color: '#64748b',
+          fontSize: 'var(--text-xs)',
+          color: 'var(--text-muted)',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
         }}
       >
-        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
-        <span>OpenStreetMap Live Tiles</span>
-        <span>•</span>
-        <span>Click anywhere on map to reposition radar target</span>
+        <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
+        <span>Map data © OpenStreetMap. Click the map to move the pin.</span>
       </div>
     </div>
   );
