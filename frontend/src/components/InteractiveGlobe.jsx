@@ -5,7 +5,7 @@ import land110m from 'world-atlas/land-110m.json';
 
 /**
  * Dotted-continent globe: land sampled on an even ~2° grid, drawn on an orthographic
- * projection. Always spins slowly (6°/s, 1°/s with reduced motion); drag or arrow keys to turn it,
+ * projection. Always spins (15°/s, 1°/s with reduced motion); drag or arrow keys to turn it,
  * with inertia on release.
  */
 
@@ -98,7 +98,7 @@ export default function InteractiveGlobe({ style = {} }) {
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
-    const SPIN_DEG_PER_S = 6;
+    const SPIN_DEG_PER_S = 15;
     const SPIN_REDUCED_DEG_PER_S = 1;
     let lastFrame = performance.now();
     const clampPhi = (v) => Math.max(-80, Math.min(80, v));
