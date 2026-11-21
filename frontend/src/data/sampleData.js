@@ -5,6 +5,14 @@
 
 export const SAMPLE_PRESETS = [
   {
+    id: "neeladri-flat-rent",
+    name: "Prestige Sunrise Park, Neeladri Nagar",
+    lat: 12.8456,
+    lng: 77.6489,
+    intent: "warehouse",
+    description: "Flat rental friction: Cauvery water shortage, tanker hikes & junction gridlock.",
+  },
+  {
     id: "bellandur-buffer",
     name: "Bellandur Lake Buffer, Bengaluru",
     lat: 12.9352,
@@ -39,6 +47,62 @@ export const SAMPLE_PRESETS = [
 ];
 
 export const SAMPLE_ANALYSES = {
+  "neeladri-flat-rent": {
+    location: "Prestige Sunrise Park, Neeladri Nagar",
+    overall_risk: "high",
+    summary:
+      "Critical reliance on private water tankers with monthly maintenance spikes and severe peak-hour gridlock at Neeladri Junction. Apartment associations actively enforce steep non-refundable tenant move-in surcharges.",
+    flags: [
+      {
+        id: "flag-1",
+        category: "civic_neighbor_friction",
+        severity: "high",
+        headline: "Acute Cauvery Shortage & Escalating Water Tanker Cess",
+        explanation:
+          "Tenants and residents face monthly maintenance surcharges of ₹4,000–₹6,500 exclusively for private water tankers due to delayed BWSSB Stage V piped supply lines.",
+        quote:
+          "Neeladri Nagar Apartment Federation reported 100% dependency on unregulated private tankers, with borewell yield dropping below 200 liters per hour across residential towers.",
+        source_title: "Electronic City Citizen Forum Water & Utility Audit",
+        url: "https://elcia.in/civic-bulletins/neeladri-water-supply-notice",
+      },
+      {
+        id: "flag-2",
+        category: "civic_neighbor_friction",
+        severity: "medium",
+        headline: "High Non-Refundable Tenant Move-In Surcharges",
+        explanation:
+          "Apartment management committees levy non-negotiable ₹10,000–₹15,000 move-in/move-out fees and restrict pet ownership and sub-leasing.",
+        quote:
+          "Karnataka Apartment Owners Association advisory flagged arbitrary tenant shifting fees imposed by gated enclave managing committees in Doddathogur-Neeladri belt.",
+        source_title: "Karnataka State Apartment Federation Tenant Advisory",
+        url: "https://kanf.org.in/advisories/tenant-shifting-charges",
+      },
+      {
+        id: "flag-3",
+        category: "zoning_buffer_row",
+        severity: "high",
+        headline: "Neeladri Junction Single-Lane Traffic Chokepoint",
+        explanation:
+          "Inadequate Right-of-Way (ROW) along Bettadasanapura and Neeladri Main Road causes 40–50 minute delays during IT corridor peak commute hours.",
+        quote:
+          "Bangalore Traffic Police survey identified Neeladri-Wipro feeder road as an acute bottle-neck with traffic volume exceeding designed carrying capacity by 280%.",
+        source_title: "Bangalore Traffic Police Electronic City Bottleneck Survey",
+        url: "https://btp.gov.in/traffic-studies/electronic-city-feeder-corridors",
+      },
+      {
+        id: "flag-4",
+        category: "flooding_drainage",
+        severity: "low",
+        headline: "Localized Baseway Waterlogging in Heavy Downpours",
+        explanation:
+          "Underground ramp transitions and perimeter storm drains experience 6-8 inch localized water ponding during sudden pre-monsoon cloudbursts.",
+        quote:
+          "Doddathogur lake feeder storm drain desilting completed with minor backflow noted during flash monsoon storms.",
+        source_title: "BBMP Ward 192 Stormwater Preparedness Note",
+        url: "https://bbmp.gov.in/monsoon-reports/ward-192-doddathogur",
+      },
+    ],
+  },
   "bellandur-buffer": {
     location: "Bellandur Lake Buffer, Bengaluru",
     overall_risk: "high",
@@ -218,7 +282,17 @@ export const SAMPLE_ANALYSES = {
 };
 
 export function getSampleAnalysis(location = "", intent = "warehouse") {
-  const locLower = location.toLowerCase();
+  const locLower = (location || "").toLowerCase();
+  if (
+    locLower.includes("neeladri") ||
+    locLower.includes("sunrise park") ||
+    locLower.includes("electronic city") ||
+    locLower.includes("flat") ||
+    locLower.includes("rent") ||
+    locLower.includes("apartment")
+  ) {
+    return SAMPLE_ANALYSES["neeladri-flat-rent"];
+  }
   if (locLower.includes("peenya")) return SAMPLE_ANALYSES["peenya-industrial"];
   if (locLower.includes("indiranagar")) return SAMPLE_ANALYSES["indiranagar-100ft"];
   if (locLower.includes("sarjapur")) return SAMPLE_ANALYSES["sarjapur-sprawl"];

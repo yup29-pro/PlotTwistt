@@ -8,7 +8,8 @@ import {
   WifiOff,
   AlertCircle,
   Sparkles,
-  Info
+  Info,
+  MapPin
 } from 'lucide-react';
 import MapCanvas from './components/MapCanvas';
 import FrictionFeed from './components/FrictionFeed';
@@ -20,16 +21,16 @@ import {
 } from './data/sampleData';
 
 export default function App() {
-  // State
-  const [selectedLocation, setSelectedLocation] = useState(
-    SAMPLE_PRESETS[0].name
-  );
+  // State: default to Neeladri Nagar Apartment / Flat Rental hotspot
+  const defaultPreset = SAMPLE_PRESETS[0];
+
+  const [selectedLocation, setSelectedLocation] = useState(defaultPreset.name);
   const [coordinates, setCoordinates] = useState({
-    lat: SAMPLE_PRESETS[0].lat,
-    lng: SAMPLE_PRESETS[0].lng,
+    lat: defaultPreset.lat,
+    lng: defaultPreset.lng,
   });
-  const [intent, setIntent] = useState('warehouse');
-  const [analysis, setAnalysis] = useState(SAMPLE_ANALYSES['bellandur-buffer']);
+  const [intent, setIntent] = useState('flat_rent');
+  const [analysis, setAnalysis] = useState(SAMPLE_ANALYSES['neeladri-flat-rent']);
   const [isLoading, setIsLoading] = useState(false);
   const [errorNotice, setErrorNotice] = useState(null);
   const [useSampleData, setUseSampleData] = useState(false);
@@ -69,15 +70,28 @@ export default function App() {
       return;
     }
 
+    // Map intent for backend schema compatibility (warehouse, retail, plot)
+    // while keeping rental/flat context in query
+    let backendIntent = intent;
+    let queryLocation = selectedLocation;
+
+    if (intent === 'flat_rent') {
+      backendIntent = 'warehouse';
+      const locLower = queryLocation.toLowerCase();
+      if (!locLower.includes('flat') && !locLower.includes('rent') && !locLower.includes('apartment')) {
+        queryLocation = `${queryLocation} (Flat & Apartment Rental)`;
+      }
+    }
+
     try {
       const response = await fetch('http://localhost:8000/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          location: selectedLocation,
+          location: queryLocation,
           lat: coordinates.lat,
           lng: coordinates.lng,
-          intent: intent,
+          intent: backendIntent,
         }),
       });
 
@@ -92,7 +106,7 @@ export default function App() {
       console.warn('Backend request failed; falling back to offline radar sample data:', err);
       setBackendConnected(false);
       setErrorNotice(
-        'Backend server (localhost:8000) is unreachable. Automatically loaded verified offline sample data for this location.'
+        'Backend server (localhost:8000) is unreachable. Loaded verified offline sample data for this location.'
       );
       // Seamlessly fallback to sample data
       const sample = getSampleAnalysis(selectedLocation, intent);
@@ -167,7 +181,7 @@ export default function App() {
                   fontWeight: 600,
                 }}
               >
-                RADAR v1.0
+                RADAR v1.2
               </span>
             </div>
             <div style={{ fontSize: '11px', color: '#64748b' }}>
