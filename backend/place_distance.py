@@ -15,7 +15,7 @@ import asyncio
 import logging
 import math
 import re
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from backend.localities import LOCALITIES
 from backend.suggest import fetch_photon  # module attribute so tests can replace it
@@ -23,6 +23,8 @@ from backend.suggest import fetch_photon  # module attribute so tests can replac
 logger = logging.getLogger("plottwistt.place_distance")
 
 MAX_LOOKUPS_PER_SCAN = 6
+# Bump when the distance rules change, so scans cached under older rules are rescanned.
+DISTANCE_VERSION = 2
 LOOKUP_BUDGET_SECONDS = 3.5  # all Photon lookups for one scan, in parallel
 GENERIC_PLACES = {"bengaluru", "bangalore", "karnataka", "india", "bbmp", "bda", "city", "state"}
 STOP_WORDS = {
@@ -99,6 +101,41 @@ def extract_place_phrase(text: str) -> Optional[str]:
     return None
 
 
+_KNOWN_BY_NAME = {name.lower(): (name, lat, lng) for name, _area, lat, lng in LOCALITIES}
+
+
+def usable_pin_names(names: Iterable[Optional[str]]) -> List[str]:
+    """Locality names that identify the scanned area. Skips city/state names and bare
+    sub-areas like "5th Block", which also exist in other localities."""
+    out: List[str] = []
+    for name in names:
+        name = (name or "").strip()
+        if not name or name.lower() in GENERIC_PLACES or name[0].isdigit():
+            continue
+        if name.lower() not in (n.lower() for n in out):
+            out.append(name)
+    return out
+
+
+def search_area_label(origin: Optional[str], pin_names: Iterable[Optional[str]]) -> Optional[str]:
+    """Readable name for the area a search was anchored on. A bare sub-area like "5th Block"
+    exists in many localities, so it is prefixed with the scanned locality."""
+    origin = (origin or "").strip()
+    if not origin or origin.lower() in GENERIC_PLACES:
+        return None
+    if origin[0].isdigit():
+        parent = next((n for n in usable_pin_names(pin_names) if n.lower() != origin.lower()), None)
+        return f"{parent} {origin}" if parent else None
+    return origin
+
+
+def _names_pin_locality(text: str, pin_names: List[str]) -> Optional[str]:
+    for name in sorted(pin_names, key=len, reverse=True):
+        if re.search(r"(?<![A-Za-z0-9])" + re.escape(name) + r"(?![A-Za-z0-9])", text, re.IGNORECASE):
+            return name
+    return None
+
+
 async def _lookup(phrase: str) -> Optional[Place]:
     key = phrase.lower()
     if key in _cache:
@@ -114,45 +151,87 @@ async def _lookup(phrase: str) -> Optional[Place]:
     return place
 
 
-async def locate_mentions(texts: Iterable[str]) -> List[Optional[Place]]:
-    """For each text, the most specific place it names (or None)."""
+async def locate_places(
+    texts: Iterable[str], pin_names: Iterable[Optional[str]] = ()
+) -> Tuple[List[Optional[Place]], bool]:
+    """For each text, the place to measure to, and whether any lookup failed.
+
+    Priority: the scanned locality itself (within=True, measured to its centre), then the
+    longest built-in locality, then a Photon lookup of a place phrase. A within-locality
+    place keeps lat/lng None when its centre couldn't be found.
+    """
     texts = list(texts)
-    found: List[Optional[Place]] = [find_known_place(t) for t in texts]
-    phrases: List[Optional[str]] = [None if f else extract_place_phrase(t) for t, f in zip(texts, found)]
+    names = usable_pin_names(pin_names)
+    plan: List[Tuple[str, Optional[str]]] = []  # (kind, name); kind: within | known | phrase | none
+    found: List[Optional[Place]] = []
+    for text in texts:
+        own = _names_pin_locality(text, names) if text else None
+        if own:
+            known = _KNOWN_BY_NAME.get(own.lower())
+            found.append({"name": own, "lat": known[1], "lng": known[2], "within": True} if known else None)
+            plan.append(("within", own))
+            continue
+        known = find_known_place(text) if text else None
+        if known:
+            found.append({**known, "within": False})
+            plan.append(("known", None))
+            continue
+        phrase = extract_place_phrase(text) if text else None
+        found.append(None)
+        plan.append(("phrase", phrase) if phrase else ("none", None))
 
-    pending: List[str] = []
-    for phrase in phrases:
-        if phrase and phrase.lower() not in _cache and phrase.lower() not in (p.lower() for p in pending):
-            pending.append(phrase)
-    pending = pending[:MAX_LOOKUPS_PER_SCAN]
+    # Lookups: the scanned locality's centre first, then story phrases; capped, parallel, cached.
+    wanted: List[str] = []
+    for kind in ("within", "phrase"):
+        for (k, name), place in zip(plan, found):
+            if k == kind and name and place is None and name.lower() not in _cache:
+                if name.lower() not in (w.lower() for w in wanted):
+                    wanted.append(name)
+    wanted = wanted[:MAX_LOOKUPS_PER_SCAN]
 
-    if pending:
+    failed = False
+    if wanted:
         try:
             outcomes = await asyncio.wait_for(
-                asyncio.gather(*(_lookup(p) for p in pending), return_exceptions=True), LOOKUP_BUDGET_SECONDS
+                asyncio.gather(*(_lookup(w) for w in wanted), return_exceptions=True), LOOKUP_BUDGET_SECONDS
             )
-            failures = [o for o in outcomes if isinstance(o, BaseException)]
-            if failures:
-                logger.warning("%d place lookup(s) failed (%s).", len(failures), type(failures[0]).__name__)
+            errors = [o for o in outcomes if isinstance(o, BaseException)]
+            if errors:
+                failed = True
+                logger.warning("%d place lookup(s) failed (%s).", len(errors), type(errors[0]).__name__)
         except asyncio.TimeoutError:
+            failed = True
             logger.warning("Place lookups exceeded %.1f s; distances left unknown.", LOOKUP_BUDGET_SECONDS)
 
-    for i, phrase in enumerate(phrases):
-        if phrase and found[i] is None:
-            found[i] = _cache.get(phrase.lower())
-    return found
+    for i, (kind, name) in enumerate(plan):
+        if found[i] is not None or not name:
+            continue
+        hit = _cache.get(name.lower())
+        if kind == "within":
+            found[i] = {"name": name, "lat": hit["lat"] if hit else None, "lng": hit["lng"] if hit else None, "within": True}
+        elif hit:
+            found[i] = {**hit, "within": False}
+    return found, failed
 
 
 def distance_fields(
-    pin_lat: Optional[float], pin_lng: Optional[float], place: Optional[Place], pin_names: Iterable[str] = ()
+    pin_lat: Optional[float], pin_lng: Optional[float], place: Optional[Place], search_area: Optional[str] = None
 ) -> Dict[str, Any]:
-    """distance_km / distance_basis / distance_method / distance_within_locality for one news flag."""
-    if place is None or pin_lat is None or pin_lng is None:
-        return {"distance_km": None, "distance_basis": None, "distance_method": "none", "distance_within_locality": False}
-    within = place["name"].lower() in {n.lower() for n in pin_names if n}
-    return {
-        "distance_km": round(haversine_km(pin_lat, pin_lng, place["lat"], place["lng"]), 1),
-        "distance_basis": place["name"],
-        "distance_method": "mentioned_place",
-        "distance_within_locality": within,
-    }
+    """distance_km / distance_basis / distance_method / distance_within_locality for one news flag.
+
+    mentioned_place: straight line from the pin to the named place (or the scanned locality's centre).
+    search_area: nothing measurable, but the story came from a search anchored on that locality; no km.
+    none: no place and no locality link.
+    """
+    pin_ok = pin_lat is not None and pin_lng is not None
+    if place and pin_ok and place.get("lat") is not None and place.get("lng") is not None:
+        return {
+            "distance_km": round(haversine_km(pin_lat, pin_lng, place["lat"], place["lng"]), 1),
+            "distance_basis": place["name"],
+            "distance_method": "mentioned_place",
+            "distance_within_locality": bool(place.get("within")),
+        }
+    area = place["name"] if place and place.get("within") else search_area
+    if area and area.lower() not in GENERIC_PLACES:
+        return {"distance_km": None, "distance_basis": area, "distance_method": "search_area", "distance_within_locality": False}
+    return {"distance_km": None, "distance_basis": None, "distance_method": "none", "distance_within_locality": False}

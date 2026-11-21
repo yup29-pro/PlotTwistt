@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend import auth, cache
 from backend.cache import PRESETS, get_demo_analysis
 from backend.geodata import collect_water_hazards
+from backend.place_distance import DISTANCE_VERSION
 from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
 from backend.serpapi_collector import collect_location_signals
 from backend.suggest import suggest as suggest_places
@@ -246,6 +247,9 @@ async def analyze_location(
 
     if not refresh:
         cached = cache.get_cached_response(locality, intent)
+        # Scans cached under older distance rules would show stale "Distance unknown" cards: rescan.
+        if cached is not None and cached.get("distance_version") != DISTANCE_VERSION:
+            cached = None
         if cached is not None:
             return _with_score({**cached, "data_source": "cache"})
 
@@ -301,6 +305,6 @@ async def analyze_location(
     # failure still marks the result degraded but doesn't block caching, so an Overpass outage
     # doesn't spend SerpApi credits on every repeat scan.
     search_failed = raw_signals.get("failed_searches", 0) > 0
-    if not (search_failed or synth_failed) and result["total_flags"] > 0:
+    if not (search_failed or synth_failed or result.get("distance_lookup_failed")) and result["total_flags"] > 0:
         cache.save_cached_response(locality, intent, result)
     return result

@@ -21,7 +21,9 @@ def test_distance_is_none_without_coordinates():
     data.pop("target_lng")
     flags = asyncio.run(synthesize_friction_report("Bellandur", "warehouse", data))["flags"]
     assert flags[0]["distance_km"] is None
-    assert flags[0]["distance_method"] == "none"
+    # It names the scanned locality but there is no pin to measure from: area only, no km.
+    assert flags[0]["distance_method"] == "search_area"
+    assert flags[0]["distance_basis"] == "Bellandur"
     assert flags[0]["proximity_tier"] == "hyperlocal"
     assert flags[0]["distance_label"] == "Names locality"
 

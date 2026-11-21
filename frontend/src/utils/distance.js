@@ -13,11 +13,25 @@ export function describeDistance(flag) {
     };
   }
   if (method === 'mentioned_place' && km !== null) {
-    const approx = `~${km.toFixed(1)} km`;
+    if (flag.distance_within_locality && basis) {
+      return {
+        known: true,
+        // Measured to the locality's centre, so a small figure only says "inside it".
+        text: km < 1.5 ? `In ${basis} (under 1.5 km)` : `~${km.toFixed(1)} km · within ${basis}`,
+        basis: `Based on mention of '${basis}', measured from the pin to its centre`,
+      };
+    }
     return {
       known: true,
-      text: flag.distance_within_locality ? `Within locality · ${approx} from centre` : `${approx} away`,
+      text: `~${km.toFixed(1)} km away`,
       basis: basis ? `Based on mention of '${basis}'` : 'Based on a place named in the story',
+    };
+  }
+  if (method === 'search_area' && basis) {
+    return {
+      known: true,
+      text: `In ${basis} area`,
+      basis: `Found by a search for '${basis}'; the story names no more specific place`,
     };
   }
   return { known: false, text: 'Distance unknown', basis: 'No specific place is named in this story' };

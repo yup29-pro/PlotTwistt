@@ -12,7 +12,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from backend.place_distance import GENERIC_PLACES as _GENERIC_PLACE_NAMES, distance_fields, locate_mentions
+from backend.place_distance import DISTANCE_VERSION, distance_fields, locate_places, search_area_label
 from backend.serpapi_collector import haversine_distance
 
 HEADLINE_MAX = 75
@@ -215,6 +215,7 @@ async def synthesize_friction_report(
 
     flags: List[Dict[str, Any]] = []
     mention_texts: List[str] = []  # per news flag without its own coordinates, for place-distance lookup
+    search_areas: List[Optional[str]] = []  # the locality each story's search was anchored on
     seen_urls = set()
 
     for item in raw_signals:
@@ -258,23 +259,32 @@ async def synthesize_friction_report(
             "distance_within_locality": False,
         })
         mention_texts.append(f"{title} {snippet}" if dist_meta["distance_km"] is None else "")
+        search_areas.append(item.get("origin_target"))
 
     # Approximate distance from the pin to the most specific place each story names.
+    # No pin from the request? Use the coordinates the place lookup resolved.
     pin_lat = signals_data.get("target_lat")
     pin_lng = signals_data.get("target_lng")
-    if pin_lat is not None and pin_lng is not None:
-        pin_names = [clean_loc, hierarchy.get("hyperlocal"), hierarchy.get("locality")]
-        pin_names = [n for n in pin_names if n and n.lower() not in _GENERIC_PLACE_NAMES]
-        places = await locate_mentions(mention_texts)
-        for flag, text, place in zip(flags, mention_texts, places):
-            if text:
-                flag.update(distance_fields(pin_lat, pin_lng, place, pin_names))
+    if pin_lat is None or pin_lng is None:
+        pin_lat, pin_lng = hierarchy.get("resolved_lat"), hierarchy.get("resolved_lng")
+    pin_names = [hierarchy.get("locality"), clean_loc, hierarchy.get("hyperlocal")]
+    places, distance_lookup_failed = await locate_places(mention_texts, pin_names)
+    for flag, text, place, area in zip(flags, mention_texts, places, search_areas):
+        if text:
+            flag.update(distance_fields(pin_lat, pin_lng, place, search_area_label(area, pin_names)))
 
     flags.extend(dict(f) for f in signals_data.get("extra_flags", []))  # e.g. geodata hazards
-    # Within a tier, closer first (unknown distance last), then severity.
+    # Within a tier, closer first (unknown distance last), then severity. An in-locality estimate
+    # only claims "under 1.5 km", so it sorts as 1.5 km rather than beating an exact nearby feature.
+    def _sort_km(f: Dict[str, Any]) -> float:
+        km = f.get("distance_km")
+        if km is None:
+            return float("inf")
+        return max(km, 1.5) if f.get("distance_within_locality") else km
+
     flags.sort(key=lambda f: (
         TIER_RANK[f["proximity_tier"]],
-        f["distance_km"] if f.get("distance_km") is not None else float("inf"),
+        _sort_km(f),
         SEVERITY_RANK[f["severity"]],
         not f.get("geodata"),
     ))
@@ -302,4 +312,7 @@ async def synthesize_friction_report(
         "summary": summary,
         "flags": flags,
         "total_flags": len(flags),
+        # Internal: a place lookup failed, so some distances are missing; the scan must not be cached.
+        "distance_lookup_failed": distance_lookup_failed,
+        "distance_version": DISTANCE_VERSION,
     }
