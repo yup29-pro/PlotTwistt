@@ -7,6 +7,7 @@ place name the source mentions.
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -40,7 +41,7 @@ def compute_friction_score(flags: List[Dict[str, Any]]) -> Tuple[int, str]:
         SCORE_WEIGHTS.get(f["severity"], 0) * TIER_MULTIPLIER.get(f["proximity_tier"], 0.3)
         for f in flags
     )
-    score = min(100, int(round(total)))
+    score = int(round(100 * (1 - math.exp(-total / 80))))  # saturating curve, never a hard cap
     return score, verdict_for(score)
 
 
