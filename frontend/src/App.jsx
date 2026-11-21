@@ -29,7 +29,7 @@ export default function App() {
     lng: SAMPLE_PRESETS[0].lng,
   });
   const [intent, setIntent] = useState('warehouse');
-  const [analysis, setAnalysis] = useState(SAMPLE_ANALYSES['bellandur-buffer']);
+  const [analysis, setAnalysis] = useState({ ...SAMPLE_ANALYSES['bellandur-buffer'], data_source: 'demo' });
   const [isLoading, setIsLoading] = useState(false);
   const [errorNotice, setErrorNotice] = useState(null);
   const [useSampleData, setUseSampleData] = useState(false);
@@ -63,7 +63,8 @@ export default function App() {
     if (useSampleData) {
       setTimeout(() => {
         const sample = getSampleAnalysis(selectedLocation, intent);
-        setAnalysis({ ...sample, data_source: 'demo' });
+        setAnalysis(sample ? { ...sample, data_source: 'demo' } : null);
+        if (!sample) setErrorNotice('No sample data exists for this location.');
         setIsLoading(false);
       }, 450);
       return;
@@ -82,7 +83,13 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned HTTP ${response.status}`);
+        // The backend answered (e.g. 503 no data, 429 rate limit): show its message, not sample data.
+        const body = await response.json().catch(() => ({}));
+        const detail = typeof body.detail === 'string' ? body.detail : `Server returned HTTP ${response.status}`;
+        setBackendConnected(true);
+        setErrorNotice(detail);
+        setAnalysis(null);
+        return;
       }
 
       const data = await response.json();
@@ -91,12 +98,14 @@ export default function App() {
     } catch (err) {
       console.warn('Backend request failed; falling back to offline radar sample data:', err);
       setBackendConnected(false);
-      setErrorNotice(
-        'Backend server is unreachable. Showing offline sample data, not live results for this location.'
-      );
-      // Seamlessly fallback to sample data
+      // Offline sample data only exists for the demo localities.
       const sample = getSampleAnalysis(selectedLocation, intent);
-      setAnalysis({ ...sample, data_source: 'demo' });
+      setErrorNotice(
+        sample
+          ? 'Backend server is unreachable. Showing offline sample data, not live results for this location.'
+          : 'Backend server is unreachable and no offline sample data exists for this location.'
+      );
+      setAnalysis(sample ? { ...sample, data_source: 'demo' } : null);
     } finally {
       setIsLoading(false);
     }
