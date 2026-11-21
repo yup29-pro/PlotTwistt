@@ -118,3 +118,20 @@ def test_partial_failure_sets_degraded(client, collector):
     res = client.post("/api/analyze", json=BELLANDUR).json()
     assert res["data_source"] == "live"
     assert res["degraded"] is True
+
+
+def test_unmocked_pipeline_without_key_stays_offline(client, tmp_path):
+    """Real collector with SERPAPI_API_KEY unset: no network, demo for a known locality."""
+    res = client.post("/api/analyze", json=BELLANDUR)
+    assert res.status_code == 200
+    assert res.json()["data_source"] == "demo"
+    assert list(tmp_path.glob("*.json")) == []
+
+
+def test_demo_results_are_not_cached(client, collector):
+    from backend.tests.conftest import make_signals
+
+    collector["result"] = RuntimeError("down")
+    assert client.post("/api/analyze", json=BELLANDUR).json()["data_source"] == "demo"
+    collector["result"] = make_signals()
+    assert client.post("/api/analyze", json=BELLANDUR).json()["data_source"] == "live"
