@@ -135,3 +135,16 @@ def test_demo_results_are_not_cached(client, collector):
     assert client.post("/api/analyze", json=BELLANDUR).json()["data_source"] == "demo"
     collector["result"] = make_signals()
     assert client.post("/api/analyze", json=BELLANDUR).json()["data_source"] == "live"
+
+
+def test_non_ascii_localities_do_not_share_a_cache_entry(client, collector):
+    client.post("/api/analyze", json={"location": "ಬೆಳ್ಳಂದೂರು", "intent": "plot"})
+    res = client.post("/api/analyze", json={"location": "ಪೀಣ್ಯ", "intent": "plot"}).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_cache_key_ignores_case_and_spacing(client, collector):
+    client.post("/api/analyze", json={"location": "Bellandur", "intent": "plot"})
+    res = client.post("/api/analyze", json={"location": "  bellandur ", "intent": "plot"}).json()
+    assert res["data_source"] == "cache"

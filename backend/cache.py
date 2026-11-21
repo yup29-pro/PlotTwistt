@@ -1,6 +1,7 @@
 """File cache, demo presets, and safe fallbacks for PlotTwistt."""
 
 from __future__ import annotations
+import hashlib
 import json
 import logging
 import os
@@ -182,10 +183,15 @@ def get_demo_analysis(locality: str) -> Optional[Dict[str, Any]]:
 
 
 def make_cache_slug(locality: str, intent: str) -> str:
-    """Generate a clean filesystem slug for caching responses."""
-    locality_clean = re.sub(r"[^a-zA-Z0-9]+", "-", locality.lower()).strip("-")
-    intent_clean = intent.lower()
-    return f"{locality_clean}_{intent_clean}"
+    """Filesystem-safe cache key: a readable ASCII part plus a hash of the normalised locality.
+
+    The hash keeps localities that share (or have no) ASCII characters, e.g. Kannada
+    names, from colliding on one cache file.
+    """
+    normalised = " ".join(locality.casefold().split())
+    readable = re.sub(r"[^a-z0-9]+", "-", normalised).strip("-")[:60] or "loc"
+    digest = hashlib.sha256(normalised.encode("utf-8")).hexdigest()[:10]
+    return f"{readable}-{digest}_{intent.lower()}"
 
 
 def _cache_file(locality: str, intent: str) -> Path:

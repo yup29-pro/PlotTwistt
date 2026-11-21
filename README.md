@@ -101,6 +101,6 @@ uvicorn backend.main:app --reload --port 8000
 ---
 
 ## 🛡️ Built-in Demo Reliability
-- **Response caching**: Live results are cached in `backend/cache/<locality>_<intent>.json` for `CACHE_TTL_HOURS` (default 24) and served with `data_source: "cache"`. Use `?refresh=true` to bypass.
+- **Response caching**: Live results are cached in `backend/cache/<locality>-<hash>_<intent>.json` for `CACHE_TTL_HOURS` (default 24) and served with `data_source: "cache"`. Use `?refresh=true` to bypass.
 - **Demo fallback**: If live collection fails entirely, the four preset localities return curated sample data marked `data_source: "demo"` (the UI shows a DEMO banner). Any other locality returns HTTP 503 rather than borrowed data.
 
