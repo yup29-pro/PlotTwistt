@@ -18,6 +18,8 @@ TIER_LABELS = {
     "corridor": "Mentions corridor",
     "district": "Area-level",
 }
+# City/state names are too broad to count as a "corridor" mention.
+GENERIC_PLACES = {"bengaluru", "bangalore", "karnataka", "india"}
 TIER_RANK = {"hyperlocal": 0, "corridor": 1, "district": 2}
 SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
 
@@ -46,7 +48,7 @@ def estimate_event_distance(
     text_lower = text.lower()
     if _mentions(target_locality, text_lower):
         tier = "hyperlocal"
-    elif corridor and corridor.lower() != "bengaluru" and _mentions(corridor, text_lower):
+    elif corridor and corridor.lower() not in GENERIC_PLACES and _mentions(corridor, text_lower):
         tier = "corridor"
     else:
         tier = "district"
@@ -64,7 +66,8 @@ def _words(*patterns: str) -> "re.Pattern[str]":
 # (topic, category, whole-word pattern). First match wins, so specific topics come first.
 TOPIC_RULES: List[Tuple[str, str, "re.Pattern[str]"]] = [
     ("heavy_vehicle", "access_infrastructure", _words(
-        r"truck bans?", r"lorry bans?", r"heavy[- ]vehicles?", r"goods vehicles?", r"multi-axle", r"no[- ]entry")),
+        r"(?:truck|lorry) bans?", r"ban(?:s|ned|ning)? (?:on )?(?:trucks?|lorries)", r"heavy[- ]vehicles?",
+        r"goods vehicles?", r"multi-axle", r"no[- ]entry", r"vehicle restrictions?")),
     ("power_line", "access_infrastructure", _words(
         r"power lines?", r"high[- ]tension", r"HT lines?", r"overhead lines?", r"transmission lines?", r"line clearance")),
     ("narrow_road", "access_infrastructure", _words(
@@ -79,7 +82,8 @@ TOPIC_RULES: List[Tuple[str, str, "re.Pattern[str]"]] = [
         r"waterlog\w*", r"flood\w*", r"inundat\w*", r"rains?", r"rainfall", r"drains?", r"drainage",
         r"rajakaluve", r"storm ?water", r"overflow\w*", r"submerg\w*")),
     ("crime", "civic_neighbor_friction", _words(
-        r"murder\w*", r"robber(?:y|ies)", r"crimes?", r"police", r"arrest\w*", r"attack\w*", r"accidents?",
+        # Bare "police" is excluded: police-administration news (transfers, restructuring) is not site friction.
+        r"murder\w*", r"robber(?:y|ies)", r"crimes?", r"arrest\w*", r"attack\w*", r"accidents?",
         r"theft", r"snatching", r"mob")),
     ("traffic", "civic_neighbor_friction", _words(r"traffic", r"jams?", r"potholes?", r"bottlenecks?", r"congestion")),
     ("protest_noise", "civic_neighbor_friction", _words(

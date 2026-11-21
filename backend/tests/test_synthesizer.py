@@ -77,3 +77,10 @@ def test_sorted_by_tier_then_severity():
         "https://e.com/local-medium",
         "https://e.com/district",
     ]
+
+
+def test_state_or_city_corridor_does_not_count_as_corridor_mention():
+    data = make_signals([sig("Karnataka High Court to BDA in land dispute")])
+    data["corridor"] = "Karnataka"
+    flags = asyncio.run(synthesize_friction_report("Bellandur", "plot", data))["flags"]
+    assert flags[0]["proximity_tier"] == "district"

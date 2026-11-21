@@ -60,3 +60,20 @@ def test_road_widening_high_for_retail():
 
 def test_unmatched_text_is_low_civic():
     assert classify_signal("New cafe opens on main street", "plot") == ("civic_neighbor_friction", "low")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Idea to reduce traffic congestion - ban trucks during day time", "Traffic crawls as vehicle restrictions kick in"],
+)
+def test_truck_bans_in_any_word_order_are_access(text):
+    assert classify_signal(text, "warehouse")[0] == "access_infrastructure"
+
+
+def test_police_administration_news_is_low():
+    text = "Bengaluru police restructured into five commissionerates under a Chief Commissioner"
+    assert classify_signal(text, "warehouse") == ("civic_neighbor_friction", "low")
+
+
+def test_police_crime_news_still_flags():
+    assert classify_signal("Police arrest gang after robbery near lake", "warehouse")[1] == "medium"
