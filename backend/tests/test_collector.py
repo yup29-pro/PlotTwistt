@@ -198,3 +198,22 @@ def test_up_to_eight_news_items_per_news_query(fake_get):
     assert len(news) == 2 * 8  # two google_news queries, 8 items each
     web = [s for s in result["signals"] if s["category"] != "civic_incident"]
     assert len(web) == 3  # web searches unchanged
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [("Madagi Road", "Magadi Road"), ("madagi road, Bydrahalli", "Magadi road, Byadarahalli"), ("Magadi Road", "Magadi Road")],
+)
+def test_locality_typos_are_normalised(raw, expected):
+    assert collector.normalize_locality_typos(raw) == expected
+
+
+def test_typo_fix_applies_to_resolved_locality(monkeypatch):
+    monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
+    hierarchy = asyncio.run(collector.resolve_hierarchical_location("Madagi Road"))
+    assert hierarchy["hyperlocal"] == "Magadi Road"
+    assert hierarchy["raw_query"] == "Madagi Road"
+
+
+def test_typo_needs_whole_word():
+    assert collector.normalize_locality_typos("Madagiri Hills") == "Madagiri Hills"

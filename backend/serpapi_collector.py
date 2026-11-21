@@ -40,6 +40,20 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     return round(R * c, 2)
 
 
+# Common misspellings of Bengaluru place names (from dc4e427).
+LOCALITY_TYPOS = [
+    (re.compile(r"\bmadagi\b", re.IGNORECASE), "Magadi"),
+    (re.compile(r"\bbydrahalli\b", re.IGNORECASE), "Byadarahalli"),
+]
+
+
+def normalize_locality_typos(text: str) -> str:
+    """Fix known whole-word misspellings so searches hit the real place name."""
+    for pattern, correct in LOCALITY_TYPOS:
+        text = pattern.sub(correct, text)
+    return text
+
+
 def clean_door_address(address: str) -> str:
     """Strip door numbers, plot markers, and numeric crosses from raw query."""
     cleaned = re.sub(
@@ -142,7 +156,7 @@ def parse_address_parts(address: str) -> tuple[str | None, str | None]:
 async def resolve_hierarchical_location(query: str, lat: float | None = None, lng: float | None = None) -> Dict[str, Any]:
     """Resolve hierarchical location breakdown: Hyperlocal -> Locality -> Corridor -> City."""
     api_key = os.getenv("SERPAPI_API_KEY")
-    clean = clean_door_address(query)
+    clean = clean_door_address(normalize_locality_typos(query))
 
     hierarchy = {
         "raw_query": query,
