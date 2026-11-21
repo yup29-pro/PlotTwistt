@@ -78,8 +78,8 @@ export default function OnboardingFlow({ onComplete }) {
       style={{
         width: '100vw',
         height: '100vh',
-        background: 'radial-gradient(circle at 70% 30%, #0f1c30 0%, #070b14 100%)',
-        color: '#f8fafc',
+        background: 'var(--bg-panel)',
+        color: 'var(--text-main)',
         display: 'flex',
         overflow: 'hidden',
         position: 'relative',
@@ -98,7 +98,7 @@ export default function OnboardingFlow({ onComplete }) {
           alignItems: 'center',
           justifyContent: 'space-between',
           zIndex: 100,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+          borderBottom: '1px solid var(--border-subtle)',
           backdropFilter: 'blur(10px)',
         }}
       >
@@ -107,28 +107,28 @@ export default function OnboardingFlow({ onComplete }) {
             style={{
               width: '34px',
               height: '34px',
-              borderRadius: '9px',
-              background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+              borderRadius: '999px',
+              background: 'var(--dark-card)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 18px rgba(37, 99, 235, 0.45)',
+              boxShadow: 'var(--shadow-soft)',
             }}
           >
             <Radar size={20} color="#ffffff" />
           </div>
-          <span style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+          <span style={{ fontSize: '18px', fontWeight: 600, letterSpacing: '-0.02em' }}>
             PlotTwistt
           </span>
           <span
             style={{
               fontSize: '10px',
               fontFamily: 'var(--font-mono)',
-              background: 'rgba(56, 189, 248, 0.12)',
-              color: '#38bdf8',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
+              background: 'var(--accent)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--accent)',
               padding: '2px 8px',
-              borderRadius: '12px',
+              borderRadius: '999px',
             }}
           >
             RADAR v1.0
@@ -144,8 +144,8 @@ export default function OnboardingFlow({ onComplete }) {
               style={{
                 width: currentSlide === idx ? '28px' : '8px',
                 height: '8px',
-                borderRadius: '4px',
-                background: currentSlide === idx ? '#38bdf8' : 'rgba(255, 255, 255, 0.15)',
+                borderRadius: '999px',
+                background: currentSlide === idx ? 'var(--accent)' : 'rgba(30, 31, 27, 0.18)',
                 transition: 'all 0.3s ease',
                 cursor: 'pointer',
               }}
@@ -156,11 +156,11 @@ export default function OnboardingFlow({ onComplete }) {
         <button
           onClick={() => setCurrentSlide(3)}
           style={{
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            color: '#f8fafc',
+            background: 'var(--chip)',
+            border: '1px solid var(--chip)',
+            color: 'var(--text-main)',
             padding: '6px 16px',
-            borderRadius: '8px',
+            borderRadius: '999px',
             fontSize: '13px',
             fontWeight: 600,
             cursor: 'pointer',
@@ -192,13 +192,13 @@ export default function OnboardingFlow({ onComplete }) {
               style={{
                 alignSelf: 'flex-start',
                 fontSize: '11px',
-                fontWeight: 700,
+                fontWeight: 500,
                 letterSpacing: '0.08em',
-                color: '#38bdf8',
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
+                color: 'var(--text-main)',
+                background: '#FFFFFF',
+                border: '1px solid #FFFFFF',
                 padding: '4px 12px',
-                borderRadius: '20px',
+                borderRadius: '999px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -212,10 +212,10 @@ export default function OnboardingFlow({ onComplete }) {
             <h1
               style={{
                 fontSize: '36px',
-                fontWeight: 800,
+                fontWeight: 600,
                 lineHeight: 1.18,
                 letterSpacing: '-0.03em',
-                color: '#ffffff',
+                color: 'var(--text-main)',
               }}
             >
               {slides[currentSlide].title}
@@ -226,7 +226,7 @@ export default function OnboardingFlow({ onComplete }) {
               style={{
                 fontSize: '15px',
                 lineHeight: 1.6,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
               }}
             >
               {slides[currentSlide].description}
@@ -241,15 +241,15 @@ export default function OnboardingFlow({ onComplete }) {
                       width: '20px',
                       height: '20px',
                       borderRadius: '50%',
-                      background: 'rgba(56, 189, 248, 0.15)',
+                      background: 'var(--accent)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <CheckCircle size={13} color="#38bdf8" />
+                    <CheckCircle size={13} color="var(--text-main)" />
                   </div>
-                  <span style={{ fontSize: '13.5px', color: '#e2e8f0', fontWeight: 500 }}>
+                  <span style={{ fontSize: '13.5px', color: 'var(--text-main)', fontWeight: 400 }}>
                     {h}
                   </span>
                 </div>
@@ -261,18 +261,18 @@ export default function OnboardingFlow({ onComplete }) {
               <button
                 onClick={handleNext}
                 style={{
-                  background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                  background: 'var(--accent)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   padding: '12px 24px',
-                  borderRadius: '10px',
+                  borderRadius: '999px',
                   fontSize: '14px',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  boxShadow: '0 0 24px rgba(37, 99, 235, 0.45)',
+                  boxShadow: 'var(--shadow-soft)',
                   transition: 'all 0.18s ease',
                 }}
               >
@@ -284,11 +284,11 @@ export default function OnboardingFlow({ onComplete }) {
                 <button
                   onClick={() => setCurrentSlide(currentSlide - 1)}
                   style={{
-                    background: 'transparent',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: '#94a3b8',
+                    background: 'var(--dark-card)',
+                    border: '1px solid var(--dark-border)',
+                    color: '#FFFFFF',
                     padding: '12px 18px',
-                    borderRadius: '10px',
+                    borderRadius: '999px',
                     fontSize: '13px',
                     cursor: 'pointer',
                   }}
@@ -302,12 +302,11 @@ export default function OnboardingFlow({ onComplete }) {
           // Slide 4: Demo profile (no account)
           <div
             style={{
-              background: 'rgba(15, 23, 42, 0.85)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '16px',
+              background: '#FFFFFF',
+              border: '1px solid #FFFFFF',
+              borderRadius: '24px',
               padding: '36px',
-              backdropFilter: 'blur(16px)',
-              boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-soft)',
               display: 'flex',
               flexDirection: 'column',
               gap: '20px',
@@ -317,24 +316,24 @@ export default function OnboardingFlow({ onComplete }) {
               <div
                 style={{
                   fontSize: 'var(--text-xs)',
-                  color: '#7dd3fc',
-                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  fontWeight: 400,
                   marginBottom: 'var(--space-1)',
                 }}
               >
                 Demo profile
               </div>
-              <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#ffffff' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
                 Start the radar demo
               </h2>
-              <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
                 No account needed. Your name is only kept in this browser to label the console.
               </p>
             </div>
 
             <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px', display: 'block' }}>
+                <label style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-main)', marginBottom: '6px', display: 'block' }}>
                   Your name (optional)
                 </label>
                 <input
@@ -344,11 +343,12 @@ export default function OnboardingFlow({ onComplete }) {
                   placeholder="e.g. Site analyst"
                   style={{
                     width: '100%',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    background: 'var(--bg-panel)',
+                    border: '1px solid rgba(30, 31, 27, 0.16)',
                     padding: '10px 14px',
-                    borderRadius: '8px',
-                    color: '#f8fafc',
+                    borderRadius: '999px',
+                    color: 'var(--text-main)',
+                    fontFamily: 'inherit',
                     fontSize: 'var(--text-base)',
                   }}
                 />
@@ -357,16 +357,16 @@ export default function OnboardingFlow({ onComplete }) {
               <button
                 type="submit"
                 style={{
-                  background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                  background: 'var(--accent)',
                   border: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   padding: '12px',
-                  borderRadius: '8px',
+                  borderRadius: '999px',
                   fontSize: '14px',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   marginTop: '6px',
-                  boxShadow: '0 0 20px rgba(37, 99, 235, 0.4)',
+                  boxShadow: 'var(--shadow-soft)',
                 }}
               >
                 Continue with demo profile (no account needed)
@@ -397,7 +397,7 @@ export default function OnboardingFlow({ onComplete }) {
             inset: 0,
             pointerEvents: 'none',
             background:
-              'radial-gradient(circle at center, transparent 30%, rgba(7, 11, 20, 0.7) 80%, #070b14 100%)',
+              'radial-gradient(circle at center, transparent 40%, rgba(218, 219, 214, 0.7) 80%, #DADBD6 100%)',
           }}
         />
 
@@ -407,15 +407,14 @@ export default function OnboardingFlow({ onComplete }) {
             position: 'absolute',
             bottom: '40px',
             right: '48px',
-            background: 'rgba(15, 23, 42, 0.85)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            borderRadius: '10px',
+            background: 'var(--dark-card)',
+            border: '1px solid var(--dark-border)',
+            borderRadius: '16px',
             padding: '12px 18px',
-            backdropFilter: 'blur(10px)',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            boxShadow: 'var(--shadow-soft)',
           }}
         >
           <div
@@ -423,15 +422,14 @@ export default function OnboardingFlow({ onComplete }) {
               width: '10px',
               height: '10px',
               borderRadius: '50%',
-              background: '#10b981',
-              boxShadow: '0 0 10px #10b981',
+              background: 'var(--accent)',
             }}
           />
           <div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-on-dark)' }}>
               Interactive globe
             </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>
               Drag globe to rotate 3D view
             </div>
           </div>

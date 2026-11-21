@@ -44,17 +44,17 @@ export default function ReceiptDrawer({ flag, onClose }) {
 
   const severityColor =
     flag.severity === 'high'
-      ? 'var(--risk-high)'
+      ? 'var(--sev-high-fg)'
       : flag.severity === 'medium'
-      ? 'var(--risk-med)'
-      : 'var(--risk-low)';
+      ? 'var(--sev-med-fg)'
+      : 'var(--sev-low-fg)';
 
   const severityBg =
     flag.severity === 'high'
-      ? 'var(--risk-high-bg)'
+      ? 'var(--sev-high-bg)'
       : flag.severity === 'medium'
-      ? 'var(--risk-med-bg)'
-      : 'var(--risk-low-bg)';
+      ? 'var(--sev-med-bg)'
+      : 'var(--sev-low-bg)';
 
   const domain = sourceDomain(flag.url);
   const hasLink = isHttpUrl(flag.url);
@@ -75,7 +75,7 @@ export default function ReceiptDrawer({ flag, onClose }) {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
+          background: 'rgba(30, 31, 27, 0.35)',
           backdropFilter: 'blur(4px)',
           transition: 'opacity 0.2s',
         }}
@@ -91,9 +91,11 @@ export default function ReceiptDrawer({ flag, onClose }) {
           width: '100%',
           maxWidth: '520px',
           height: '100%',
-          background: '#0d131f',
+          background: '#FFFFFF',
           borderLeft: '1px solid var(--border-subtle)',
-          boxShadow: '-10px 0 40px rgba(0, 0, 0, 0.8)',
+          borderRadius: '24px 0 0 24px',
+          overflow: 'hidden',
+          boxShadow: '-8px 0 24px rgba(0, 0, 0, 0.12)',
           display: 'flex',
           flexDirection: 'column',
           zIndex: 2010,
@@ -112,7 +114,7 @@ export default function ReceiptDrawer({ flag, onClose }) {
           style={{
             padding: '20px 24px',
             borderBottom: '1px solid var(--border-subtle)',
-            background: '#111827',
+            background: '#FFFFFF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -123,13 +125,13 @@ export default function ReceiptDrawer({ flag, onClose }) {
               style={{
                 width: '32px',
                 height: '32px',
-                borderRadius: '8px',
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '999px',
+                background: 'var(--accent)',
+                border: '1px solid var(--accent)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#38bdf8',
+                color: 'var(--text-main)',
               }}
             >
               <FileCheck2 size={18} />
@@ -138,7 +140,8 @@ export default function ReceiptDrawer({ flag, onClose }) {
               <div
                 style={{
                   fontSize: 'var(--text-base)',
-                  fontWeight: 700,
+                  fontWeight: 600,
+                  letterSpacing: '-0.01em',
                   color: 'var(--text-main)',
                 }}
               >
@@ -155,10 +158,10 @@ export default function ReceiptDrawer({ flag, onClose }) {
             onClick={onClose}
             aria-label="Close source receipt"
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              color: '#cbd5e1',
+              background: 'var(--chip)',
+              border: '1px solid var(--chip)',
+              borderRadius: '999px',
+              color: 'var(--text-main)',
               padding: '6px',
               cursor: 'pointer',
               display: 'flex',
@@ -188,11 +191,11 @@ export default function ReceiptDrawer({ flag, onClose }) {
               style={{
                 background: severityBg,
                 color: severityColor,
-                border: `1px solid ${severityColor}`,
+                border: `1px solid ${severityBg}`,
                 padding: '4px 10px',
-                borderRadius: '6px',
+                borderRadius: '999px',
                 fontSize: 'var(--text-xs)',
-                fontWeight: 700,
+                fontWeight: 600,
                 textTransform: 'capitalize',
               }}
             >
@@ -201,13 +204,13 @@ export default function ReceiptDrawer({ flag, onClose }) {
 
             <span
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                color: '#cbd5e1',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--chip)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--chip)',
                 padding: '4px 10px',
-                borderRadius: '6px',
+                borderRadius: '999px',
                 fontSize: 'var(--text-xs)',
-                fontWeight: 600,
+                fontWeight: 400,
                 textTransform: 'capitalize',
               }}
             >
@@ -216,12 +219,12 @@ export default function ReceiptDrawer({ flag, onClose }) {
             {flag.distance_label ? (
               <span
                 style={{
-                  color: '#7dd3fc',
-                  border: '1px solid rgba(125, 211, 252, 0.3)',
+                  color: 'var(--text-main)',
+                  border: '1px solid rgba(30, 31, 27, 0.16)',
                   padding: '4px 10px',
-                  borderRadius: '6px',
+                  borderRadius: '999px',
                   fontSize: 'var(--text-xs)',
-                  fontWeight: 600,
+                  fontWeight: 400,
                 }}
               >
                 {flag.distance_label}
@@ -235,8 +238,9 @@ export default function ReceiptDrawer({ flag, onClose }) {
               id="receipt-title"
               style={{
                 fontSize: '18px',
-                fontWeight: 700,
-                color: '#ffffff',
+                fontWeight: 600,
+                letterSpacing: '-0.02em',
+                color: 'var(--text-main)',
                 lineHeight: 1.35,
               }}
             >
@@ -247,9 +251,9 @@ export default function ReceiptDrawer({ flag, onClose }) {
           {/* Plain-English Impact Section */}
           <div
             style={{
-              background: '#111827',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '10px',
+              background: 'var(--bg-panel)',
+              border: '1px solid var(--bg-panel)',
+              borderRadius: '16px',
               padding: '16px',
               display: 'flex',
               flexDirection: 'column',
@@ -259,8 +263,8 @@ export default function ReceiptDrawer({ flag, onClose }) {
             <div
               style={{
                 fontSize: 'var(--text-xs)',
-                color: '#7dd3fc',
-                fontWeight: 600,
+                color: 'var(--text-muted)',
+                fontWeight: 400,
               }}
             >
               What this means for the site
@@ -269,7 +273,7 @@ export default function ReceiptDrawer({ flag, onClose }) {
               style={{
                 fontSize: '13.5px',
                 lineHeight: 1.6,
-                color: '#e2e8f0',
+                color: 'var(--text-main)',
               }}
             >
               {flag.explanation}
@@ -279,21 +283,21 @@ export default function ReceiptDrawer({ flag, onClose }) {
           {/* Highlighted Quote Callout (The "Receipt") */}
           <div
             style={{
-              background: 'rgba(2, 6, 23, 0.8)',
-              border: '1px solid rgba(56, 189, 248, 0.25)',
-              borderLeft: '4px solid #38bdf8',
-              borderRadius: '8px',
+              background: 'var(--dark-card)',
+              border: '1px solid var(--dark-border)',
+              borderLeft: '4px solid var(--accent)',
+              borderRadius: '16px',
               padding: '18px',
               display: 'flex',
               flexDirection: 'column',
               gap: '12px',
               position: 'relative',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+              boxShadow: 'var(--shadow-soft)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)' }}>
               <Quote size={18} />
-              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 400 }}>
                 Quote from the source
               </span>
             </div>
@@ -302,7 +306,7 @@ export default function ReceiptDrawer({ flag, onClose }) {
               style={{
                 fontSize: '15px',
                 lineHeight: 1.65,
-                color: '#f1f5f9',
+                color: '#FFFFFF',
                 fontStyle: 'normal',
                 fontFamily: 'var(--font-sans)',
               }}
@@ -316,8 +320,8 @@ export default function ReceiptDrawer({ flag, onClose }) {
                 alignItems: 'center',
                 gap: '6px',
                 fontSize: 'var(--text-xs)',
-                color: 'var(--text-dim)',
-                fontWeight: 500,
+                color: 'var(--muted-on-dark)',
+                fontWeight: 400,
               }}
             >
               <Info size={14} aria-hidden="true" />
@@ -328,9 +332,9 @@ export default function ReceiptDrawer({ flag, onClose }) {
           {/* Source Document Details */}
           <div
             style={{
-              background: '#111827',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '10px',
+              background: 'var(--bg-panel)',
+              border: '1px solid var(--bg-panel)',
+              borderRadius: '16px',
               padding: '16px',
               display: 'flex',
               flexDirection: 'column',
@@ -341,13 +345,13 @@ export default function ReceiptDrawer({ flag, onClose }) {
               style={{
                 fontSize: 'var(--text-xs)',
                 color: 'var(--text-dim)',
-                fontWeight: 600,
+                fontWeight: 400,
               }}
             >
               Source{domain ? `: ${domain}` : ''}
             </div>
 
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f8fafc' }}>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>
               {flag.source_title}
             </div>
 
@@ -369,7 +373,7 @@ export default function ReceiptDrawer({ flag, onClose }) {
           style={{
             padding: '16px 24px',
             borderTop: '1px solid var(--border-subtle)',
-            background: '#111827',
+            background: '#FFFFFF',
             display: 'flex',
             gap: '12px',
           }}
@@ -385,14 +389,14 @@ export default function ReceiptDrawer({ flag, onClose }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                background: 'linear-gradient(135deg, #0284c7, #2563eb)',
-                color: '#ffffff',
+                background: 'var(--accent)',
+                color: 'var(--text-main)',
                 padding: '12px 16px',
-                borderRadius: '8px',
+                borderRadius: '999px',
                 fontSize: '13px',
                 fontWeight: 600,
                 textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+                boxShadow: 'var(--shadow-soft)',
                 transition: 'all 0.15s',
               }}
             >
@@ -408,11 +412,11 @@ export default function ReceiptDrawer({ flag, onClose }) {
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#cbd5e1',
+              background: 'var(--dark-card)',
+              border: '1px solid var(--dark-border)',
+              color: '#FFFFFF',
               padding: '12px 18px',
-              borderRadius: '8px',
+              borderRadius: '999px',
               fontSize: '13px',
               fontWeight: 500,
               cursor: 'pointer',

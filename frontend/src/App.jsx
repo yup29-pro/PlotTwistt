@@ -143,7 +143,7 @@ export default function App() {
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        background: 'var(--bg-dark)',
+        background: 'var(--bg-page)',
       }}
     >
       {/* Top Application Header */}
@@ -151,7 +151,7 @@ export default function App() {
         style={{
           height: '56px',
           padding: '0 20px',
-          background: '#0d131f',
+          background: 'var(--bg-panel)',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
@@ -165,12 +165,12 @@ export default function App() {
             style={{
               width: '32px',
               height: '32px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+              borderRadius: '999px',
+              background: 'var(--dark-card)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 16px rgba(37, 99, 235, 0.4)',
+              boxShadow: 'var(--shadow-soft)',
             }}
           >
             <Radar size={20} color="#ffffff" />
@@ -181,9 +181,9 @@ export default function App() {
               <h1
                 style={{
                   fontSize: '16px',
-                  fontWeight: 800,
+                  fontWeight: 600,
                   letterSpacing: '-0.02em',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                 }}
               >
                 PlotTwistt
@@ -192,12 +192,12 @@ export default function App() {
                 style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: '10px',
-                  color: '#06b6d4',
-                  background: 'rgba(6, 182, 212, 0.12)',
-                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  color: 'var(--text-main)',
+                  background: 'var(--accent)',
+                  border: '1px solid var(--accent)',
                   padding: '2px 6px',
-                  borderRadius: '4px',
-                  fontWeight: 600,
+                  borderRadius: '999px',
+                  fontWeight: 500,
                 }}
               >
                 RADAR v1.0
@@ -218,14 +218,14 @@ export default function App() {
               alignItems: 'center',
               gap: '6px',
               fontSize: '12px',
-              color: '#cbd5e1',
-              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text-main)',
+              background: 'var(--chip)',
               padding: '4px 10px',
-              borderRadius: '6px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '999px',
+              border: '1px solid var(--chip)',
             }}
           >
-            <UserCheck size={14} color="#38bdf8" />
+            <UserCheck size={14} color="var(--text-main)" />
             <span>{currentUser.name}</span>
           </div>
 
@@ -236,11 +236,11 @@ export default function App() {
               alignItems: 'center',
               gap: '6px',
               fontSize: 'var(--text-xs)',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--chip)',
+              border: '1px solid var(--chip)',
               padding: '4px 10px',
-              borderRadius: '6px',
-              color: backendConnected ? '#6ee7b7' : '#cbd5e1',
+              borderRadius: '999px',
+              color: 'var(--text-main)',
             }}
           >
             {backendConnected ? (
@@ -250,8 +250,8 @@ export default function App() {
                     width: '6px',
                     height: '6px',
                     borderRadius: '50%',
-                    background: '#10b981',
-                    boxShadow: '0 0 8px #10b981',
+                    background: 'var(--accent)',
+                    boxShadow: '0 0 0 1px var(--text-main)',
                   }}
                 />
                 <span>API online</span>
@@ -263,7 +263,8 @@ export default function App() {
                     width: '6px',
                     height: '6px',
                     borderRadius: '50%',
-                    background: '#eab308',
+                    background: 'transparent',
+                    boxShadow: 'inset 0 0 0 1.5px var(--text-muted)',
                   }}
                 />
                 <span>API offline</span>
@@ -281,16 +282,16 @@ export default function App() {
               gap: '8px',
               cursor: 'pointer',
               background: useSampleData
-                ? 'rgba(56, 189, 248, 0.15)'
-                : 'rgba(255, 255, 255, 0.04)',
+                ? 'var(--accent)'
+                : 'var(--chip)',
               border: `1px solid ${
-                useSampleData ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'
+                useSampleData ? 'var(--accent)' : 'var(--chip)'
               }`,
               padding: '4px 10px',
-              borderRadius: '6px',
+              borderRadius: '999px',
               fontSize: 'var(--text-xs)',
               fontWeight: 500,
-              color: useSampleData ? '#7dd3fc' : '#cbd5e1',
+              color: 'var(--text-main)',
               transition: 'all 0.15s',
             }}
           >
@@ -311,11 +312,11 @@ export default function App() {
             onClick={handleLogout}
             title="Back to the intro"
             style={{
-              background: 'transparent',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: '#cbd5e1',
+              background: 'var(--dark-card)',
+              border: '1px solid var(--dark-border)',
+              color: '#FFFFFF',
               padding: '5px 10px',
-              borderRadius: '6px',
+              borderRadius: '999px',
               fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
@@ -333,9 +334,9 @@ export default function App() {
         <div
           role="status"
           style={{
-            background: 'rgba(96, 165, 250, 0.12)',
-            borderBottom: '1px solid rgba(96, 165, 250, 0.35)',
-            color: '#dbeafe',
+            background: '#FFFFFF',
+            borderBottom: '1px solid var(--border-subtle)',
+            color: 'var(--text-main)',
             padding: '8px 20px',
             fontSize: 'var(--text-sm)',
             display: 'flex',
@@ -344,14 +345,15 @@ export default function App() {
             zIndex: 1050,
           }}
         >
-          <Info size={15} color="#93c5fd" aria-hidden="true" />
+          <Info size={15} color="var(--text-main)" aria-hidden="true" />
           <span>
             <strong
               style={{
-                color: '#ffffff',
-                background: 'rgba(96, 165, 250, 0.3)',
+                color: 'var(--text-main)',
+                background: 'var(--accent)',
+                fontWeight: 600,
                 padding: '1px 6px',
-                borderRadius: '4px',
+                borderRadius: '999px',
                 marginRight: '6px',
               }}
             >
@@ -367,9 +369,9 @@ export default function App() {
         <div
           role="status"
           style={{
-            background: 'rgba(234, 179, 8, 0.12)',
-            borderBottom: '1px solid rgba(234, 179, 8, 0.3)',
-            color: '#fef3c7',
+            background: '#FFFFFF',
+            borderBottom: '1px solid var(--accent)',
+            color: 'var(--text-main)',
             padding: '8px 20px',
             fontSize: 'var(--text-sm)',
             display: 'flex',
@@ -379,7 +381,7 @@ export default function App() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertCircle size={15} color="#eab308" />
+            <AlertCircle size={15} color="var(--text-main)" />
             <span>{errorNotice}</span>
           </div>
           <button
@@ -388,10 +390,10 @@ export default function App() {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#fef08a',
+              color: 'var(--text-main)',
               cursor: 'pointer',
               fontSize: '13px',
-              fontWeight: 700,
+              fontWeight: 600,
             }}
           >
             ✕

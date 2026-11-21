@@ -22,14 +22,15 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom Radar Pulsing Marker Icon
-function createRadarIcon(color = '#06b6d4') {
+// Selected pin: dark-glass badge, white icon, accent ring and a small accent badge with the risk letter (H / M / L).
+function createRadarIcon(label = '') {
   return L.divIcon({
     className: 'custom-radar-pin',
     html: `
       <div style="position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
-        <div style="position: absolute; width: 32px; height: 32px; border-radius: 50%; background: ${color}; opacity: 0.25; animation: radar-pulse 1.8s infinite ease-out;"></div>
-        <div style="position: absolute; width: 18px; height: 18px; border-radius: 50%; background: ${color}; opacity: 0.6;"></div>
-        <div style="position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #ffffff; border: 2px solid ${color};"></div>
+        <div style="position: absolute; inset: 0; border-radius: 50%; background: rgba(30,31,27,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 2px solid #FBB54E; box-shadow: 0 8px 24px rgba(0,0,0,0.25);"></div>
+        <svg style="position: relative;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        ${label ? `<span style="position: absolute; top: -5px; right: -6px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; background: #FBB54E; color: #1E1F1B; font: 600 9px/15px Urbanist, sans-serif; text-align: center;">${label}</span>` : ''}
       </div>
     `,
     iconSize: [32, 32],
@@ -42,8 +43,8 @@ function createPresetIcon() {
   return L.divIcon({
     className: 'preset-pin',
     html: `
-      <div style="width: 22px; height: 22px; border-radius: 50%; background: #1e293b; border: 2px solid #94a3b8; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.5);">
-        <div style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8;"></div>
+      <div style="width: 22px; height: 22px; border-radius: 50%; background: rgba(30,31,27,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #FFFFFF;"></div>
       </div>
     `,
     iconSize: [22, 22],
@@ -90,12 +91,10 @@ export default function MapCanvas({
       zoomControl: false,
     });
 
-    // Dark styled OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    // Esri World Imagery (satellite) tiles
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri',
       maxZoom: 19,
-      className: 'dark-tiles',
     }).addTo(map);
 
     // Zoom controls at top right
@@ -132,11 +131,11 @@ export default function MapCanvas({
     if (lakeBufferBreach) {
       bufferCircleRef.current = L.circle([coordinates.lat, coordinates.lng], {
         radius: 75,
-        color: '#f87171',
+        color: '#FBB54E',
         weight: 3,
         dashArray: '6 4',
-        fillColor: '#ef4444',
-        fillOpacity: 0.18,
+        fillColor: '#FBB54E',
+        fillOpacity: 0.12,
       })
         .bindTooltip('Inside 75 m lake buffer', {
           permanent: true,
@@ -147,24 +146,24 @@ export default function MapCanvas({
         .addTo(map);
     }
 
-    const pinColor =
+    const pinLabel =
       overallRisk === 'high'
-        ? '#ef4444'
+        ? 'H'
         : overallRisk === 'medium'
-        ? '#f59e0b'
+        ? 'M'
         : overallRisk === 'low'
-        ? '#10b981'
-        : '#06b6d4';
+        ? 'L'
+        : '';
 
     const marker = L.marker([coordinates.lat, coordinates.lng], {
-      icon: createRadarIcon(pinColor),
+      icon: createRadarIcon(pinLabel),
     }).addTo(map);
 
     marker.bindPopup(`
       <div style="font-family: inherit; font-size: 13px; line-height: 1.4;">
-        <strong style="color: #f8fafc; font-size: 14px;">${selectedLocation}</strong><br/>
-        <span style="color: #94a3b8; font-size: 11px;">${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}</span><br/>
-        <span style="color: #38bdf8; font-weight: 600; text-transform: uppercase; font-size: 10px; margin-top: 4px; display: inline-block;">Target: ${intent}</span>
+        <strong style="color: #1E1F1B; font-size: 14px; font-weight: 600; letter-spacing: -0.01em;">${selectedLocation}</strong><br/>
+        <span style="color: #5E5F5A; font-size: 11px;">${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}</span><br/>
+        <span style="color: #1E1F1B; background: #FBB54E; border-radius: 999px; padding: 0 6px; font-weight: 500; text-transform: uppercase; font-size: 10px; margin-top: 4px; display: inline-block;">Target: ${intent}</span>
       </div>
     `);
 
@@ -205,12 +204,13 @@ export default function MapCanvas({
         {/* Main Search Panel */}
         <div
           style={{
-            background: 'rgba(17, 24, 39, 0.92)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '12px',
+            background: 'var(--glass)',
+            backdropFilter: 'var(--glass-filter)',
+            WebkitBackdropFilter: 'var(--glass-filter)',
+            border: '1px solid var(--glass-border)',
+            borderRadius: '24px',
             padding: '12px 16px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+            boxShadow: 'var(--shadow-soft)',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
@@ -219,7 +219,7 @@ export default function MapCanvas({
           {/* Location Search Input */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-              <MapPin size={18} color="#06b6d4" />
+              <MapPin size={18} color="#FFFFFF" />
               <input
                 type="text"
                 value={selectedLocation}
@@ -230,7 +230,8 @@ export default function MapCanvas({
                   width: '100%',
                   background: 'transparent',
                   border: 'none',
-                  color: '#f8fafc',
+                  color: '#FFFFFF',
+                  textShadow: 'var(--glass-text-shadow)',
                   fontSize: 'var(--text-base)',
                   fontWeight: 500,
                   fontFamily: 'inherit',
@@ -243,11 +244,11 @@ export default function MapCanvas({
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--text-xs)',
-                color: 'var(--text-muted)',
-                background: 'rgba(255, 255, 255, 0.05)',
+                color: 'var(--text-main)',
+                background: '#FFFFFF',
                 padding: '4px 8px',
-                borderRadius: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '999px',
+                border: '1px solid #FFFFFF',
                 whiteSpace: 'nowrap',
               }}
             >
@@ -263,17 +264,17 @@ export default function MapCanvas({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: isLoading ? 'var(--bg-card-alt)' : '#2563eb',
-                color: isLoading ? 'var(--text-muted)' : '#ffffff',
-                border: `1px solid ${isLoading ? 'var(--border-subtle)' : '#60a5fa'}`,
+                background: isLoading ? 'var(--chip)' : 'var(--accent)',
+                color: isLoading ? 'var(--text-muted)' : 'var(--text-main)',
+                border: `1px solid ${isLoading ? 'var(--chip)' : 'var(--accent)'}`,
                 padding: '10px 18px',
-                borderRadius: '8px',
+                borderRadius: '999px',
                 fontSize: 'var(--text-base)',
-                fontWeight: 700,
+                fontWeight: 600,
                 whiteSpace: 'nowrap',
                 cursor: isLoading ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
-                boxShadow: isLoading ? 'none' : '0 4px 14px rgba(37, 99, 235, 0.4)',
+                boxShadow: isLoading ? 'none' : 'var(--shadow-soft)',
               }}
             >
               <Radar size={16} className={isLoading ? 'pulse-radar' : ''} />
@@ -287,15 +288,16 @@ export default function MapCanvas({
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '1px solid var(--glass-border)',
               paddingTop: '10px',
             }}
           >
             <span
               style={{
                 fontSize: 'var(--text-xs)',
-                color: 'var(--text-dim)',
-                fontWeight: 600,
+                color: '#FFFFFF',
+                textShadow: 'var(--glass-text-shadow)',
+                fontWeight: 400,
               }}
             >
               Evaluating for
@@ -313,13 +315,13 @@ export default function MapCanvas({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
-                      background: active ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                      border: `1px solid ${active ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
-                      color: active ? '#7dd3fc' : '#cbd5e1',
+                      background: active ? 'var(--accent)' : 'var(--chip)',
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--chip)'}`,
+                      color: 'var(--text-main)',
                       padding: '6px 10px',
-                      borderRadius: '6px',
+                      borderRadius: '999px',
                       fontSize: 'var(--text-sm)',
-                      fontWeight: active ? 600 : 500,
+                      fontWeight: active ? 600 : 400,
                       cursor: 'pointer',
                       transition: 'all 0.15s',
                     }}
@@ -338,19 +340,21 @@ export default function MapCanvas({
           <span
             style={{
               fontSize: '11px',
-              color: '#94a3b8',
-              fontWeight: 600,
-              background: 'rgba(17, 24, 39, 0.8)',
-              backdropFilter: 'blur(8px)',
+              color: '#FFFFFF',
+              textShadow: 'var(--glass-text-shadow)',
+              fontWeight: 400,
+              background: 'var(--glass)',
+              backdropFilter: 'var(--glass-filter)',
+              WebkitBackdropFilter: 'var(--glass-filter)',
               padding: '4px 8px',
-              borderRadius: '6px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '999px',
+              border: '1px solid var(--glass-border)',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
             }}
           >
-            <Sparkles size={12} color="#f59e0b" aria-hidden="true" />
+            <Sparkles size={12} color="var(--accent)" aria-hidden="true" />
             Try a demo site
           </span>
           {SAMPLE_PRESETS.map((preset) => (
@@ -361,15 +365,17 @@ export default function MapCanvas({
               style={{
                 background:
                   selectedLocation === preset.name
-                    ? 'rgba(6, 182, 212, 0.25)'
-                    : 'rgba(17, 24, 39, 0.85)',
-                backdropFilter: 'blur(8px)',
+                    ? 'var(--accent)'
+                    : 'var(--glass)',
+                backdropFilter: 'var(--glass-filter)',
+                WebkitBackdropFilter: 'var(--glass-filter)',
                 border: `1px solid ${
-                  selectedLocation === preset.name ? '#06b6d4' : 'rgba(255, 255, 255, 0.1)'
+                  selectedLocation === preset.name ? 'var(--accent)' : 'var(--glass-border)'
                 }`,
-                color: selectedLocation === preset.name ? '#7dd3fc' : '#e2e8f0',
+                color: selectedLocation === preset.name ? 'var(--text-main)' : '#FFFFFF',
+                textShadow: selectedLocation === preset.name ? 'none' : 'var(--glass-text-shadow)',
                 padding: '6px 10px',
-                borderRadius: '6px',
+                borderRadius: '999px',
                 fontSize: 'var(--text-xs)',
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -384,6 +390,8 @@ export default function MapCanvas({
 
       {/* Interactive Leaflet Map Container */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {/* Fog haze over the imagery (decorative, never intercepts clicks) */}
+      <div className="map-fog" aria-hidden="true" />
 
       {/* Bottom Map Status Bar */}
       <div
@@ -392,20 +400,20 @@ export default function MapCanvas({
           bottom: '12px',
           left: '12px',
           zIndex: 1000,
-          background: 'rgba(10, 14, 23, 0.85)',
-          backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '6px',
+          background: '#FFFFFF',
+          border: '1px solid #FFFFFF',
+          borderRadius: '999px',
           padding: '4px 10px',
           fontSize: 'var(--text-xs)',
-          color: 'var(--text-muted)',
+          color: 'var(--text-main)',
+          boxShadow: 'var(--shadow-soft)',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
         }}
       >
-        <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
-        <span>Map data © OpenStreetMap. Click the map to move the pin.</span>
+        <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)' }}></span>
+        <span>Imagery © Esri. Click the map to move the pin.</span>
       </div>
     </div>
   );

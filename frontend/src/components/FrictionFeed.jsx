@@ -21,37 +21,37 @@ const CATEGORY_META = {
     label: 'Flooding & Drainage',
     shortLabel: 'Drainage',
     icon: Droplets,
-    color: '#38bdf8',
-    bg: 'rgba(56, 189, 248, 0.1)',
+    color: '#FFFFFF',
+    bg: 'rgba(255, 255, 255, 0.08)',
   },
   zoning_buffer_row: {
     label: 'Zoning & ROW Buffer',
     shortLabel: 'Zoning & Buffer',
     icon: Ruler,
-    color: '#a855f7',
-    bg: 'rgba(168, 85, 247, 0.1)',
+    color: '#FFFFFF',
+    bg: 'rgba(255, 255, 255, 0.08)',
   },
   civic_neighbor_friction: {
     label: 'Civic & Neighbor Friction',
     shortLabel: 'Civic & Community',
     icon: Users,
-    color: '#fb923c',
-    bg: 'rgba(249, 115, 22, 0.12)',
+    color: '#FFFFFF',
+    bg: 'rgba(255, 255, 255, 0.08)',
   },
   access_infrastructure: {
     label: 'Access & Infrastructure',
     shortLabel: 'Access',
     icon: Truck,
-    color: '#facc15',
-    bg: 'rgba(250, 204, 21, 0.1)',
+    color: '#FFFFFF',
+    bg: 'rgba(255, 255, 255, 0.08)',
   },
 };
 
-const VERDICT_COLOR = { High: 'var(--risk-high)', Moderate: 'var(--risk-med)', Low: 'var(--risk-low)' };
+const VERDICT_COLOR = { High: 'var(--text-main)', Moderate: 'var(--text-main)', Low: 'var(--text-main)' };
 const SEVERITY_STYLE = {
-  high: { color: '#fca5a5', bg: 'rgba(239, 68, 68, 0.16)', bar: 'var(--risk-high)' },
-  medium: { color: '#fcd34d', bg: 'rgba(245, 158, 11, 0.16)', bar: 'var(--risk-med)' },
-  low: { color: '#6ee7b7', bg: 'rgba(16, 185, 129, 0.14)', bar: 'var(--risk-low)' },
+  high: { color: 'var(--sev-high-fg)', bg: 'var(--sev-high-bg)', bar: 'var(--sev-high-bg)', ring: 'none' },
+  medium: { color: 'var(--sev-med-fg)', bg: 'var(--sev-med-bg)', bar: 'var(--muted-on-dark)', ring: 'inset 0 0 0 1px rgba(255, 255, 255, 0.35)' },
+  low: { color: 'var(--sev-low-fg)', bg: 'var(--sev-low-bg)', bar: 'var(--dark-border)', ring: 'none' },
 };
 
 // Publisher domain shown on each card, e.g. "thehindu.com".
@@ -83,7 +83,7 @@ export default function FrictionFeed({
           justifyContent: 'center',
           gap: '16px',
           padding: '24px',
-          background: 'var(--bg-dark)',
+          background: 'var(--bg-panel)',
         }}
       >
         <div
@@ -91,8 +91,8 @@ export default function FrictionFeed({
             width: '48px',
             height: '48px',
             borderRadius: '50%',
-            border: '3px solid rgba(56, 189, 248, 0.2)',
-            borderTopColor: '#38bdf8',
+            border: '3px solid rgba(30, 31, 27, 0.12)',
+            borderTopColor: 'var(--accent)',
             animation: 'spin 1s linear infinite',
           }}
         />
@@ -124,7 +124,7 @@ export default function FrictionFeed({
           gap: 'var(--space-3)',
         }}
       >
-        <ShieldAlert size={40} color="#334155" />
+        <ShieldAlert size={40} color="var(--text-muted)" />
         <div style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--text-main)' }}>
           Pick a site to scan
         </div>
@@ -140,30 +140,30 @@ export default function FrictionFeed({
   const riskMeta = {
     high: {
       badgeText: 'HIGH RISK LEVEL',
-      color: 'var(--risk-high)',
-      bg: 'var(--risk-high-bg)',
-      border: 'var(--risk-high-border)',
+      color: 'var(--accent)',
+      bg: '#FFFFFF',
+      border: 'var(--accent)',
       icon: ShieldAlert,
     },
     medium: {
       badgeText: 'MEDIUM RISK LEVEL',
-      color: 'var(--risk-med)',
-      bg: 'var(--risk-med-bg)',
-      border: 'var(--risk-med-border)',
+      color: 'var(--dark-card)',
+      bg: '#FFFFFF',
+      border: '#FFFFFF',
       icon: AlertTriangle,
     },
     low: {
       badgeText: 'LOW RISK LEVEL',
-      color: 'var(--risk-low)',
-      bg: 'var(--risk-low-bg)',
-      border: 'var(--risk-low-border)',
+      color: 'var(--text-muted)',
+      bg: '#FFFFFF',
+      border: '#FFFFFF',
       icon: ShieldCheck,
     },
   }[overall_risk] || {
     badgeText: 'CALCULATING',
-    color: '#94a3b8',
-    bg: 'rgba(255, 255, 255, 0.05)',
-    border: 'rgba(255, 255, 255, 0.1)',
+    color: 'var(--text-muted)',
+    bg: '#FFFFFF',
+    border: '#FFFFFF',
     icon: ShieldAlert,
   };
 
@@ -208,7 +208,7 @@ export default function FrictionFeed({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--bg-dark)',
+        background: 'var(--bg-panel)',
         overflow: 'hidden',
       }}
     >
@@ -217,7 +217,7 @@ export default function FrictionFeed({
         style={{
           padding: '20px',
           borderBottom: '1px solid var(--border-subtle)',
-          background: 'linear-gradient(180deg, #111827 0%, #0d121e 100%)',
+          background: 'var(--bg-panel)',
           display: 'flex',
           flexDirection: 'column',
           gap: '14px',
@@ -225,14 +225,14 @@ export default function FrictionFeed({
       >
         {/* Location */}
         <div>
-          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.3 }}>
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--text-main)', lineHeight: 1.3 }}>
             {location}
           </h2>
           {analysis?.hierarchy?.display_hierarchy ? (
             <div
               style={{
                 fontSize: 'var(--text-xs)',
-                color: '#7dd3fc',
+                color: 'var(--text-muted)',
                 marginTop: 'var(--space-1)',
                 display: 'flex',
                 alignItems: 'center',
@@ -252,7 +252,8 @@ export default function FrictionFeed({
             alignItems: 'center',
             gap: 'var(--space-4)',
             padding: 'var(--space-4)',
-            borderRadius: '12px',
+            borderRadius: '24px',
+            boxShadow: 'var(--shadow-soft)',
             background: riskMeta.bg,
             border: `1px solid ${riskMeta.border}`,
           }}
@@ -262,7 +263,7 @@ export default function FrictionFeed({
               <span
                 style={{
                   fontSize: '56px',
-                  fontWeight: 800,
+                  fontWeight: 600,
                   lineHeight: 1,
                   letterSpacing: '-0.03em',
                   fontVariantNumeric: 'tabular-nums',
@@ -271,18 +272,19 @@ export default function FrictionFeed({
               >
                 {analysis.friction_score}
               </span>
-              <span style={{ fontSize: 'var(--text-base)', color: 'var(--text-dim)', fontWeight: 600 }}>/100</span>
+              <span style={{ fontSize: 'var(--text-base)', color: 'var(--text-dim)', fontWeight: 400 }}>/100</span>
             </div>
           ) : (
-            <RiskIcon size={36} color={riskMeta.color} aria-hidden="true" />
+            <RiskIcon size={36} color="var(--text-main)" aria-hidden="true" />
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
             <span
               style={{
                 fontSize: 'var(--text-xl)',
-                fontWeight: 700,
+                fontWeight: 600,
+                letterSpacing: '-0.02em',
                 lineHeight: 1.1,
-                color: hasScore ? verdictColor : riskMeta.color,
+                color: hasScore ? verdictColor : 'var(--text-main)',
                 textTransform: 'capitalize',
               }}
             >
@@ -298,13 +300,14 @@ export default function FrictionFeed({
         {/* 2-Sentence Summary Card */}
         <div
           style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            borderLeft: `3px solid ${riskMeta.color}`,
-            borderRadius: '4px 8px 8px 4px',
+            background: '#FFFFFF',
+            borderLeft: `3px solid ${riskMeta.border === '#FFFFFF' ? '#FFFFFF' : riskMeta.color}`,
+            borderRadius: '16px',
+            boxShadow: 'var(--shadow-soft)',
             padding: '10px 14px',
             fontSize: 'var(--text-sm)',
             lineHeight: 1.5,
-            color: '#cbd5e1',
+            color: 'var(--text-main)',
           }}
         >
           {summary}
@@ -320,14 +323,14 @@ export default function FrictionFeed({
               gap: 'var(--space-2)',
               fontSize: 'var(--text-sm)',
               lineHeight: 1.45,
-              color: '#cbd5e1',
-              background: 'rgba(148, 163, 184, 0.08)',
-              border: '1px solid rgba(148, 163, 184, 0.2)',
-              borderRadius: '8px',
+              color: 'var(--text-main)',
+              background: '#FFFFFF',
+              border: '1px solid #FFFFFF',
+              borderRadius: '16px',
               padding: 'var(--space-2) var(--space-3)',
             }}
           >
-            <Info size={15} color="#94a3b8" style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
+            <Info size={15} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden="true" />
             <span>Some sources didn't respond, so this scan may be incomplete. Scan again later for a fuller picture.</span>
           </div>
         ) : null}
@@ -345,13 +348,13 @@ export default function FrictionFeed({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: active ? '#2563eb' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${active ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)'}`,
-                  color: active ? '#ffffff' : '#cbd5e1',
+                  background: active ? 'var(--accent)' : 'var(--chip)',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--chip)'}`,
+                  color: 'var(--text-main)',
                   padding: '6px 10px',
-                  borderRadius: '6px',
+                  borderRadius: '999px',
                   fontSize: 'var(--text-xs)',
-                  fontWeight: 600,
+                  fontWeight: active ? 600 : 500,
                   cursor: 'pointer',
                   transition: 'all 0.15s',
                 }}
@@ -359,8 +362,8 @@ export default function FrictionFeed({
                 <span>{cat.label}</span>
                 <span
                   style={{
-                    background: active ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.1)',
-                    borderRadius: '10px',
+                    background: active ? 'rgba(30, 31, 27, 0.14)' : 'rgba(30, 31, 27, 0.08)',
+                    borderRadius: '999px',
                     padding: '1px 6px',
                     fontSize: '10px',
                     fontFamily: 'var(--font-mono)',
@@ -395,7 +398,7 @@ export default function FrictionFeed({
             paddingBottom: 'var(--space-1)',
           }}
         >
-          <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Friction points ({filteredFlags.length})</span>
+          <span style={{ fontWeight: 500, color: 'var(--text-main)' }}>Friction points ({filteredFlags.length})</span>
           <span>Select a card to see its source</span>
         </div>
 
@@ -403,8 +406,8 @@ export default function FrictionFeed({
           const catMeta = CATEGORY_META[flag.category] || {
             label: flag.category,
             icon: AlertTriangle,
-            color: '#94a3b8',
-            bg: 'rgba(255,255,255,0.05)',
+            color: '#FFFFFF',
+            bg: 'rgba(255, 255, 255, 0.08)',
           };
           const CatIcon = catMeta.icon;
 
@@ -427,10 +430,10 @@ export default function FrictionFeed({
                 }
               }}
               style={{
-                background: isSelected ? 'var(--bg-card-hover)' : 'var(--bg-card)',
-                border: `1px solid ${isSelected ? '#38bdf8' : 'var(--border-subtle)'}`,
+                background: isSelected ? 'var(--dark-border)' : 'var(--dark-card)',
+                border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--dark-border)'}`,
                 borderLeft: `4px solid ${sev.bar}`,
-                borderRadius: '8px',
+                borderRadius: '16px',
                 padding: '14px',
                 cursor: 'pointer',
                 transition: 'all 0.18s ease-in-out',
@@ -439,8 +442,8 @@ export default function FrictionFeed({
                 gap: '8px',
                 position: 'relative',
                 boxShadow: isSelected
-                  ? '0 0 18px rgba(56, 189, 248, 0.2)'
-                  : '0 2px 6px rgba(0,0,0,0.3)',
+                  ? '0 8px 24px rgba(0, 0, 0, 0.16)'
+                  : 'var(--shadow-soft)',
               }}
             >
               {/* Category, Distance, and Severity Pill Row */}
@@ -462,9 +465,9 @@ export default function FrictionFeed({
                       background: catMeta.bg,
                       color: catMeta.color,
                       padding: '3px 8px',
-                      borderRadius: '4px',
+                      borderRadius: '999px',
                       fontSize: '11px',
-                      fontWeight: 600,
+                      fontWeight: 500,
                     }}
                   >
                     <CatIcon size={12} />
@@ -479,22 +482,22 @@ export default function FrictionFeed({
                         fontFamily: 'var(--font-mono)',
                         color:
                           flag.proximity_tier === 'hyperlocal'
-                            ? '#34d399'
+                            ? 'var(--accent)'
                             : flag.proximity_tier === 'corridor'
-                            ? '#38bdf8'
-                            : '#94a3b8',
+                            ? '#FFFFFF'
+                            : 'var(--muted-on-dark)',
                         background:
                           flag.proximity_tier === 'hyperlocal'
-                            ? 'rgba(52, 211, 153, 0.12)'
-                            : 'rgba(56, 189, 248, 0.08)',
+                            ? 'rgba(251, 181, 78, 0.12)'
+                            : 'rgba(255, 255, 255, 0.06)',
                         border: `1px solid ${
                           flag.proximity_tier === 'hyperlocal'
-                            ? 'rgba(52, 211, 153, 0.25)'
-                            : 'rgba(56, 189, 248, 0.2)'
+                            ? 'rgba(251, 181, 78, 0.4)'
+                            : 'rgba(255, 255, 255, 0.14)'
                         }`,
                         padding: '2px 7px',
-                        borderRadius: '4px',
-                        fontWeight: 600,
+                        borderRadius: '999px',
+                        fontWeight: 500,
                       }}
                     >
                       {flag.distance_label}
@@ -505,9 +508,10 @@ export default function FrictionFeed({
                 <span
                   style={{
                     fontSize: 'var(--text-xs)',
-                    fontWeight: 700,
+                    fontWeight: 600,
                     color: sev.color,
                     background: sev.bg,
+                    boxShadow: sev.ring,
                     padding: '2px 8px',
                     borderRadius: '999px',
                     textTransform: 'capitalize',
@@ -521,8 +525,9 @@ export default function FrictionFeed({
               <h3
                 style={{
                   fontSize: 'var(--text-base)',
-                  fontWeight: 700,
-                  color: 'var(--text-main)',
+                  fontWeight: 600,
+                  letterSpacing: '-0.01em',
+                  color: '#FFFFFF',
                   lineHeight: 1.35,
                 }}
               >
@@ -534,7 +539,7 @@ export default function FrictionFeed({
                 style={{
                   fontSize: 'var(--text-sm)',
                   lineHeight: 1.5,
-                  color: 'var(--text-muted)',
+                  color: 'var(--muted-on-dark)',
                 }}
               >
                 {flag.explanation}
@@ -543,12 +548,12 @@ export default function FrictionFeed({
               {/* Verified Quote Snippet */}
               <div
                 style={{
-                  background: 'rgba(0, 0, 0, 0.3)',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid var(--dark-border)',
+                  borderRadius: '16px',
                   padding: '8px 10px',
                   fontSize: '11.5px',
-                  color: '#cbd5e1',
+                  color: '#FFFFFF',
                   fontStyle: 'italic',
                   fontFamily: 'var(--font-sans)',
                   lineHeight: 1.45,
@@ -563,7 +568,7 @@ export default function FrictionFeed({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderTop: '1px solid var(--dark-border)',
                   paddingTop: '8px',
                   marginTop: '4px',
                   fontSize: '11px',
@@ -576,8 +581,8 @@ export default function FrictionFeed({
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     maxWidth: '240px',
-                    color: '#e2e8f0',
-                    fontWeight: 600,
+                    color: 'var(--muted-on-dark)',
+                    fontWeight: 400,
                   }}
                 >
                   {domain || 'Source'}
@@ -588,8 +593,8 @@ export default function FrictionFeed({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    color: '#7dd3fc',
-                    fontWeight: 600,
+                    color: 'var(--accent)',
+                    fontWeight: 500,
                   }}
                 >
                   <span>View source</span>
@@ -630,11 +635,11 @@ export default function FrictionFeed({
                 <button
                   onClick={() => setActiveCategory('All')}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    background: 'var(--chip)',
+                    border: '1px solid var(--chip)',
                     color: 'var(--text-main)',
                     padding: '6px 12px',
-                    borderRadius: '6px',
+                    borderRadius: '999px',
                     fontSize: 'var(--text-xs)',
                     fontWeight: 600,
                     cursor: 'pointer',

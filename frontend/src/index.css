@@ -1,34 +1,48 @@
-/* PlotTwistt High-Contrast Radar Design System */
+/* PlotTwistt: warm stone surfaces, dark cards, one amber accent, glass over satellite imagery */
 
 :root {
-  --bg-dark: #0a0e17;
-  --bg-card: #111827;
-  --bg-card-hover: #172238;
-  --bg-card-alt: #1a2333;
-  --border-subtle: #1f293d;
-  --border-active: #3b82f6;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --text-dim: #8b9ab0; /* >= 4.5:1 on --bg-dark and --bg-card */
-  
-  /* Radar & Risk Accents */
-  --risk-high: #ef4444;
-  --risk-high-bg: rgba(239, 68, 68, 0.12);
-  --risk-high-border: rgba(239, 68, 68, 0.35);
-  
-  --risk-med: #f59e0b;
-  --risk-med-bg: rgba(245, 158, 11, 0.12);
-  --risk-med-border: rgba(245, 158, 11, 0.35);
-  
-  --risk-low: #10b981;
-  --risk-low-bg: rgba(16, 185, 129, 0.12);
-  --risk-low-border: rgba(16, 185, 129, 0.35);
+  /* Surfaces */
+  --bg-page: #A8A8A8;
+  --bg-panel: #DADBD6;
+  --bg-dark: var(--bg-panel); /* legacy alias */
+  --card: #FFFFFF;
+  --chip: #ECECE8;
+  --dark-card: #2B2B2B;
+  --dark-border: #333333;
+  --bg-card: var(--dark-card);
+  --bg-card-hover: var(--dark-border);
+  --bg-card-alt: var(--chip);
+  --border-subtle: rgba(30, 31, 27, 0.1);
+  --border-active: #FBB54E;
 
-  --accent-cyan: #06b6d4;
-  --accent-cyan-bg: rgba(6, 182, 212, 0.12);
-  
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Text. #A8A8A6 is the reference muted tone; it only passes AA on dark cards,
+     so light surfaces use a darker muted (#5E5F5A, 4.6:1 on the panel). */
+  --text-main: #1E1F1B;
+  --text-muted: #5E5F5A;
+  --text-dim: #5E5F5A;
+  --muted-on-dark: #A8A8A6;
+
+  /* Accent */
+  --accent: #FBB54E;
+
+  /* Severity pills (always paired with a text label) */
+  --sev-high-bg: #FBB54E;
+  --sev-high-fg: #1E1F1B;
+  --sev-med-bg: #2B2B2B;
+  --sev-med-fg: #FFFFFF;
+  --sev-low-bg: #ECECE8;
+  --sev-low-fg: #1E1F1B;
+
+  /* Glass over the map */
+  --glass: rgba(255, 255, 255, 0.18);
+  --glass-filter: blur(14px) saturate(140%);
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+  --font-sans: 'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--font-sans); /* Urbanist everywhere; numbers use tabular figures */
 
   /* Spacing (4px base) and type scale shared by all components */
   --space-1: 4px;
@@ -42,14 +56,15 @@
   --text-base: 14px;
   --text-lg: 17px;
   --text-xl: 22px;
-  --focus-ring: #7dd3fc;
+  --focus-ring: #FBB54E;
 }
 
-/* Visible keyboard focus everywhere (inline styles can't express :focus-visible) */
+/* Visible keyboard focus everywhere (inline styles can't express :focus-visible).
+   Amber ring plus a dark halo so it reads on light, dark and imagery backgrounds. */
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-  border-radius: 4px;
+  box-shadow: 0 0 0 4px rgba(30, 31, 27, 0.55);
 }
 button:focus:not(:focus-visible),
 [role='button']:focus:not(:focus-visible) {
@@ -78,11 +93,34 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--bg-dark);
+  background-color: var(--bg-page);
   color: var(--text-main);
   font-family: var(--font-sans);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--text-main);
+}
+
+input {
+  caret-color: var(--accent);
+}
+input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 /* Custom scrollbars */
@@ -91,56 +129,116 @@ html, body, #root {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-dark);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 3px;
+  background: rgba(30, 31, 27, 0.2);
+  border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-dim);
+  background: rgba(30, 31, 27, 0.4);
 }
 
 /* Leaflet Overrides */
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #0f172a !important;
+  background: var(--bg-page) !important;
   font-family: var(--font-sans) !important;
 }
 
-/* Leaflet Tile Inversion/Dark Mode Filter */
-.dark-tiles .leaflet-tile {
-  filter: brightness(0.7) invert(1) contrast(1.1) hue-rotate(200deg) saturate(0.3) !important;
+/* Fog: soft white haze in the corners and along the edges, like low cloud over the imagery */
+.map-fog {
+  position: absolute;
+  inset: 0;
+  z-index: 450; /* above tiles and the buffer ring, below markers, tooltips and the HUD */
+  pointer-events: none;
+  opacity: 0.3;
+  background:
+    radial-gradient(ellipse 45% 40% at 0% 0%, #FFFFFF 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 45% 40% at 100% 0%, #FFFFFF 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 50% 45% at 0% 100%, #FFFFFF 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 50% 45% at 100% 100%, #FFFFFF 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 70% 18% at 50% 100%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 14% 60% at 0% 50%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 14% 60% at 100% 50%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 70%);
 }
 
-.leaflet-popup-content-wrapper {
-  background: var(--bg-card) !important;
+/* Round glass map buttons (zoom) */
+.leaflet-bar,
+.leaflet-touch .leaflet-bar {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.leaflet-bar a,
+.leaflet-bar a:first-child,
+.leaflet-bar a:last-child,
+.leaflet-touch .leaflet-bar a {
+  border-radius: 999px !important;
+  background: var(--glass) !important;
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-border) !important;
+  color: #FFFFFF !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important;
+  text-shadow: var(--glass-text-shadow);
+  box-shadow: var(--shadow-soft);
+  transition: background 0.15s ease-out;
+}
+.leaflet-bar a:hover {
+  background: rgba(255, 255, 255, 0.32) !important;
+}
+.leaflet-bar a.leaflet-disabled {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Attribution */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
   color: var(--text-main) !important;
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 999px 0 0 0;
+  padding: 0 8px !important;
+  font-family: var(--font-sans);
+}
+.leaflet-control-attribution a {
+  color: var(--text-main) !important;
 }
 
+/* Popups are readable callouts: solid white */
+.leaflet-popup-content-wrapper {
+  background: #FFFFFF !important;
+  color: var(--text-main) !important;
+  border: 1px solid #FFFFFF !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-soft) !important;
+}
 .leaflet-popup-tip {
-  background: var(--bg-card) !important;
-  border-top: 1px solid var(--border-subtle);
+  background: #FFFFFF !important;
+}
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--text-muted) !important;
 }
 
-/* Radar Pulse Animations */
+/* Pin pulse (used by the scan button icon while loading) */
 @keyframes radar-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.6);
+    box-shadow: 0 0 0 0 rgba(251, 181, 78, 0.6);
   }
   70% {
-    box-shadow: 0 0 0 12px rgba(6, 182, 212, 0);
+    box-shadow: 0 0 0 12px rgba(251, 181, 78, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
+    box-shadow: 0 0 0 0 rgba(251, 181, 78, 0);
   }
 }
 
 .pulse-radar {
+  border-radius: 999px;
   animation: radar-pulse 2s infinite cubic-bezier(0.45, 0, 0.2, 1);
 }
 
@@ -159,24 +257,25 @@ html, body, #root {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+  background: var(--accent);
   animation: scanline 2.5s linear infinite;
   pointer-events: none;
 }
 
-/* Lake-buffer ring label on the map */
+/* Lake-buffer ring label on the map: solid white callout with an amber edge */
 .leaflet-tooltip.buffer-tooltip {
-  background: #7f1d1d;
-  color: #fff;
-  border: 1px solid #f87171;
-  border-radius: 6px;
+  background: #FFFFFF;
+  color: var(--text-main);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: 700;
-  padding: 3px 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  font-weight: 600;
+  padding: 3px 10px;
+  box-shadow: var(--shadow-soft);
 }
 .leaflet-tooltip.buffer-tooltip::before {
-  border-top-color: #f87171;
+  border-top-color: var(--accent);
 }
 
 /* Focus ring for controls that wrap a visually hidden input (e.g. the sample-data switch) */

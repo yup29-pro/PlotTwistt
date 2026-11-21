@@ -84,8 +84,8 @@ export default function InteractiveGlobe({ style = {} }) {
 
       // Outer atmosphere halo
       const grad = ctx.createRadialGradient(cx, cy, radius * 0.7, cx, cy, radius * 1.25);
-      grad.addColorStop(0, 'rgba(6, 182, 212, 0.08)');
-      grad.addColorStop(0.7, 'rgba(56, 189, 248, 0.03)');
+      grad.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+      grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.12)');
       grad.addColorStop(1, 'transparent');
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -98,7 +98,7 @@ export default function InteractiveGlobe({ style = {} }) {
         const ringRadius = radius * Math.cos(rFactor * Math.PI * 0.5);
         const ringY = radius * Math.sin(rFactor * Math.PI * 0.5);
 
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.06)';
+        ctx.strokeStyle = 'rgba(30, 31, 27, 0.08)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.ellipse(cx, cy + ringY * Math.cos(angleX), ringRadius, ringRadius * 0.3 * Math.sin(angleX + 1), 0, 0, Math.PI * 2);
@@ -136,8 +136,8 @@ export default function InteractiveGlobe({ style = {} }) {
         const alpha = Math.max(0.12, Math.min(0.95, p.depth * 1.1));
         const size = Math.max(1.2, p.depth * 3.2);
 
-        ctx.fillStyle = `rgba(56, 189, 248, ${alpha})`;
-        ctx.shadowColor = '#38bdf8';
+        ctx.fillStyle = `rgba(30, 31, 27, ${alpha})`;
+        ctx.shadowColor = 'rgba(30, 31, 27, 0)';
         ctx.shadowBlur = p.depth > 0.6 ? 6 : 0;
 
         ctx.beginPath();
@@ -150,13 +150,13 @@ export default function InteractiveGlobe({ style = {} }) {
 
       // Pulsing radar target ping on Bangalore coordinates
       const pingAlpha = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
-      ctx.strokeStyle = `rgba(239, 68, 68, ${pingAlpha})`;
+      ctx.strokeStyle = `rgba(251, 181, 78, ${pingAlpha})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(cx + radius * 0.35, cy - radius * 0.15, 8 + 6 * (1 - pingAlpha), 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.fillStyle = '#ef4444';
+      ctx.fillStyle = '#FBB54E';
       ctx.beginPath();
       ctx.arc(cx + radius * 0.35, cy - radius * 0.15, 4, 0, Math.PI * 2);
       ctx.fill();
