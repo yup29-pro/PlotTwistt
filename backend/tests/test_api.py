@@ -148,3 +148,17 @@ def test_cache_key_ignores_case_and_spacing(client, collector):
     client.post("/api/analyze", json={"location": "Bellandur", "intent": "plot"})
     res = client.post("/api/analyze", json={"location": "  bellandur ", "intent": "plot"}).json()
     assert res["data_source"] == "cache"
+
+
+def test_typo_variants_share_a_cache_entry(client, collector):
+    client.post("/api/analyze", json={"location": "Madagi Road", "intent": "warehouse"})
+    res = client.post("/api/analyze", json={"location": "magadi   ROAD", "intent": "warehouse"}).json()
+    assert res["data_source"] == "cache"
+    assert collector["calls"] == 1
+
+
+def test_cache_slug_normalises_typos_case_and_spacing():
+    from backend.cache import make_cache_slug
+
+    assert make_cache_slug("Madagi Road", "plot") == make_cache_slug("  magadi   road ", "plot")
+    assert make_cache_slug("Magadi Road", "plot") != make_cache_slug("Magadi Road", "retail")

@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.serpapi_collector import normalize_locality_typos
+
 logger = logging.getLogger("plottwistt.cache")
 
 CACHE_DIR = Path(__file__).resolve().parent / "cache"
@@ -185,10 +187,11 @@ def get_demo_analysis(locality: str) -> Optional[Dict[str, Any]]:
 def make_cache_slug(locality: str, intent: str) -> str:
     """Filesystem-safe cache key: a readable ASCII part plus a hash of the normalised locality.
 
-    The hash keeps localities that share (or have no) ASCII characters, e.g. Kannada
-    names, from colliding on one cache file.
+    Known misspellings, case and spacing are normalised first. The hash keeps localities
+    that share (or have no) ASCII characters, e.g. Kannada names, from colliding on one
+    cache file.
     """
-    normalised = " ".join(locality.casefold().split())
+    normalised = " ".join(normalize_locality_typos(locality).casefold().split())
     readable = re.sub(r"[^a-z0-9]+", "-", normalised).strip("-")[:60] or "loc"
     digest = hashlib.sha256(normalised.encode("utf-8")).hexdigest()[:10]
     return f"{readable}-{digest}_{intent.lower()}"
