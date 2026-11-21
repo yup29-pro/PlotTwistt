@@ -101,10 +101,13 @@ def _source_domain(url: str) -> str:
 
 
 def _finalize_signal(signal: Dict[str, Any]) -> Dict[str, Any] | None:
-    """Unwrap redirect links and replace generic source labels with the publisher domain."""
+    """Unwrap redirects, drop signals without an http(s) URL, and name generic sources by domain."""
     url = unwrap_redirect_url(signal.get("url") or "")
     if url is None:
         return None
+    parsed = urlparse(url)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        return None  # every flag needs a clickable receipt
     source = str(signal.get("source") or "").strip()
     if source.lower() in GENERIC_SOURCES or GENERIC_SOURCE_RE.search(source):
         source = _source_domain(url) or source

@@ -180,3 +180,11 @@ def test_named_source_is_kept(fake_get):
     result = collect()
     organic = [s for s in result["signals"] if s["category"] != "civic_incident"]
     assert {s["source"] for s in organic} == {"The Hindu"}
+
+
+@pytest.mark.parametrize("link", ["", "javascript:alert(1)", "/relative/path", "ftp://e.com/f"])
+def test_signals_without_http_url_are_dropped(fake_get, link):
+    fake_get["organic"] = [{"title": "Bellandur flood item", "link": link, "displayed_link": "Civic Source"}]
+    result = collect()
+    organic = [s for s in result["signals"] if s["category"] != "civic_incident"]
+    assert organic == []
