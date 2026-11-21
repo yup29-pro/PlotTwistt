@@ -127,12 +127,12 @@ def classify_signal(text: str, intent: str) -> Tuple[str, str]:
     return "civic_neighbor_friction", "low"
 
 
-def _explanation(category: str, clean_loc: str, corridor: str) -> str:
+def _explanation(category: str, clean_loc: str, corridor: Optional[str]) -> str:
     return {
         "zoning_buffer_row": f"Public record near {clean_loc} points to zoning, buffer, demolition or land-title scrutiny.",
         "flooding_drainage": f"Monsoon drainage, waterlogging or stormwater conditions reported around {clean_loc}.",
         "access_infrastructure": f"Vehicle access, approach-road or overhead-line constraints reported around {clean_loc}.",
-        "civic_neighbor_friction": f"Local civic, traffic, safety or neighbor friction reported along {corridor}.",
+        "civic_neighbor_friction": f"Local civic, traffic, safety or neighbor friction reported around {corridor or clean_loc}.",
     }[category]
 
 
@@ -144,7 +144,7 @@ async def synthesize_friction_report(
     """Synthesize raw search and news signals into maximum actionable friction cards with distance metadata."""
     hierarchy = signals_data.get("hierarchy", {})
     clean_loc = signals_data.get("locality") or locality
-    corridor = signals_data.get("corridor") or "Bengaluru"
+    corridor = signals_data.get("corridor")
     raw_signals = signals_data.get("signals", [])
 
     flags: List[Dict[str, Any]] = []

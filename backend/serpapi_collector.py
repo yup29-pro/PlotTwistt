@@ -56,6 +56,30 @@ def clean_door_address(address: str) -> str:
     return cleaned if cleaned and len(cleaned) >= 3 else address.strip()
 
 
+GENERIC_ADDRESS_PARTS = {"karnataka", "india", "bengaluru", "bangalore", "bengaluru urban", "bangalore urban"}
+POSTCODE_RE = re.compile(r"\b\d{6}\b")
+
+
+def parse_address_parts(address: str) -> tuple[str | None, str | None]:
+    """Return (locality, corridor) from a Maps address, most specific part first.
+
+    Postcodes, door numbers, and city/state/country names are skipped. The last
+    remaining part is the broader corridor and the one before it the locality; with
+    a single part left, that part is the locality and the corridor is None.
+    """
+    parts = []
+    for raw in address.split(","):
+        part = POSTCODE_RE.sub("", raw).strip()
+        if not part or not re.search(r"[A-Za-z]{2}", part) or part.lower() in GENERIC_ADDRESS_PARTS:
+            continue
+        parts.append(part)
+    if not parts:
+        return None, None
+    if len(parts) == 1:
+        return parts[0], None
+    return parts[-2], parts[-1]
+
+
 async def resolve_hierarchical_location(query: str, lat: float | None = None, lng: float | None = None) -> Dict[str, Any]:
     """Resolve hierarchical location breakdown: Hyperlocal -> Locality -> Corridor -> City."""
     api_key = os.getenv("SERPAPI_API_KEY")
@@ -65,7 +89,7 @@ async def resolve_hierarchical_location(query: str, lat: float | None = None, ln
         "raw_query": query,
         "hyperlocal": clean.split(",")[0].strip(),
         "locality": clean.split(",")[0].strip(),
-        "corridor": "Bengaluru",
+        "corridor": None,
         "city": "Bengaluru",
         "resolved_lat": lat,
         "resolved_lng": lng,
@@ -99,14 +123,13 @@ async def resolve_hierarchical_location(query: str, lat: float | None = None, ln
                         hierarchy["resolved_lat"] = gps["latitude"]
                         hierarchy["resolved_lng"] = gps["longitude"]
 
-                    address_str = place.get("address", "")
                     title = place.get("title", clean)
-                    parts = [p.strip() for p in address_str.split(",") if p.strip()]
+                    locality, corridor = parse_address_parts(place.get("address", ""))
 
                     hierarchy["hyperlocal"] = title
-                    if len(parts) >= 2:
-                        hierarchy["locality"] = parts[0]
-                        hierarchy["corridor"] = parts[1] if len(parts) > 2 else parts[0]
+                    if locality is not None:
+                        hierarchy["locality"] = locality
+                    hierarchy["corridor"] = corridor
 
                     hierarchy["display_hierarchy"] = " ❯ ".join(
                         [p for p in [title, hierarchy.get("locality"), hierarchy.get("corridor"), "Bengaluru"] if p]
@@ -174,6 +197,11 @@ async def collect_location_signals(
     clean_loc = hierarchy["hyperlocal"]
     corridor = hierarchy["corridor"]
 
+    # Only search the corridor when a real one was resolved (and it differs from the target).
+    place = f'"{clean_loc}"'
+    if corridor and corridor.lower() != clean_loc.lower():
+        place = f'{place} OR "{corridor}"'
+
     # Search queries across 5 distinct angles
     search_targets = [
         # A: Google News for local neighborhood incidents
@@ -181,25 +209,25 @@ async def collect_location_signals(
         # B: Google News for corridor transit/accidents/crime
         {
             "engine": "google_news",
-            "q": f"{clean_loc} OR {corridor} Bangalore crime OR police OR accident",
+            "q": f"{place} Bangalore crime OR police OR accident",
             "category": "civic_incident",
         },
         # C: Land disputes, BDA, illegal layouts, and demolition notices
         {
             "engine": "google",
-            "q": f'"{clean_loc}" OR "{corridor}" Bangalore (land dispute OR illegal layout OR demolition OR acquisition OR BDA)',
+            "q": f"{place} Bangalore (land dispute OR illegal layout OR demolition OR acquisition OR BDA)",
             "category": "zoning_buffer_row",
         },
         # D: Traffic bottlenecks, heavy vehicles, and road conditions
         {
             "engine": "google",
-            "q": f'"{clean_loc}" OR "{corridor}" Bangalore (traffic jam OR road condition OR bottleneck OR pothole OR truck ban)',
+            "q": f"{place} Bangalore (traffic jam OR road condition OR bottleneck OR pothole OR truck ban)",
             "category": "civic_neighbor_friction",
         },
         # E: Flooding, drainage, waterlogging, or power/water supply cuts
         {
             "engine": "google",
-            "q": f'"{clean_loc}" OR "{corridor}" Bangalore (waterlogging OR flood OR drain overflow OR BESCOM power shutdown OR water tanker)',
+            "q": f"{place} Bangalore (waterlogging OR flood OR drain overflow OR BESCOM power shutdown OR water tanker)",
             "category": "flooding_drainage",
         },
     ]

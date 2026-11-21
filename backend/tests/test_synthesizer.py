@@ -84,3 +84,11 @@ def test_state_or_city_corridor_does_not_count_as_corridor_mention():
     data["corridor"] = "Karnataka"
     flags = asyncio.run(synthesize_friction_report("Bellandur", "plot", data))["flags"]
     assert flags[0]["proximity_tier"] == "district"
+
+
+def test_missing_corridor_is_not_replaced_with_city():
+    data = make_signals([sig("Bengaluru residents protest garbage dumping")])
+    data["corridor"] = None
+    flag = asyncio.run(synthesize_friction_report("Bellandur", "plot", data))["flags"][0]
+    assert "along Bengaluru" not in flag["explanation"]
+    assert flag["proximity_tier"] == "district"

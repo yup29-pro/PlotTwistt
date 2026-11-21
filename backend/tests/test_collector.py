@@ -18,12 +18,14 @@ def _response(payload):
 @pytest.fixture
 def fake_get(monkeypatch):
     monkeypatch.setenv("SERPAPI_API_KEY", FAKE_KEY)
-    state = {"inflight": 0, "max_inflight": 0, "timeouts": [], "fail_queries": 0, "fail_all": False}
+    state = {"inflight": 0, "max_inflight": 0, "timeouts": [], "fail_queries": 0, "fail_all": False,
+             "queries": [], "maps": {}}
 
     async def get(self, url, params=None, timeout=None, **kwargs):
         state["timeouts"].append((params["engine"], timeout))
         if params["engine"] == "google_maps":
-            return _response({})
+            return _response(state["maps"])
+        state["queries"].append(params["q"])
         state["inflight"] += 1
         state["max_inflight"] = max(state["max_inflight"], state["inflight"])
         await asyncio.sleep(0.01)
@@ -79,3 +81,38 @@ def test_failures_logged_without_key_or_url(fake_get, caplog):
     text = "\n".join(r.getMessage() for r in caplog.records)
     assert FAKE_KEY not in text
     assert "serpapi.com/search.json?" not in text
+
+
+@pytest.mark.parametrize(
+    "address, expected",
+    [
+        ("Bellandur, Bengaluru, Karnataka 560103", ("Bellandur", None)),
+        ("Outer Ring Rd, Bellandur, Bengaluru, Karnataka 560103", ("Outer Ring Rd", "Bellandur")),
+        ("Sarjapur Main Rd, Dommasandra, Bengaluru, Karnataka 562125", ("Sarjapur Main Rd", "Dommasandra")),
+        ("Peenya 2nd Stage, Peenya, Bangalore, Karnataka 560058, India", ("Peenya 2nd Stage", "Peenya")),
+        ("12, 5th Cross Rd, HSR Layout Sector 2, HSR Layout, Bengaluru, Karnataka 560102",
+         ("HSR Layout Sector 2", "HSR Layout")),
+        ("Karnataka 560103, India", (None, None)),
+    ],
+)
+def test_parse_address_parts(address, expected):
+    assert collector.parse_address_parts(address) == expected
+
+
+def test_no_corridor_is_left_out_of_queries(fake_get):
+    fake_get["maps"] = {"place_results": {"title": "Bellandur", "address": "Bellandur, Bengaluru, Karnataka 560103"}}
+    result = collect()
+    assert result["corridor"] is None
+    assert fake_get["queries"]
+    for q in fake_get["queries"]:
+        assert "None" not in q
+        assert "Karnataka" not in q
+        assert '""' not in q
+
+
+def test_valid_corridor_is_used_in_queries(fake_get):
+    fake_get["maps"] = {"place_results": {
+        "title": "Bellandur Lake", "address": "Outer Ring Rd, Bellandur, Bengaluru, Karnataka 560103"}}
+    result = collect()
+    assert result["corridor"] == "Bellandur"
+    assert sum('"Bellandur"' in q for q in fake_get["queries"]) >= 3
