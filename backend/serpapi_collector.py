@@ -7,6 +7,7 @@ Provides:
 """
 
 from __future__ import annotations
+import asyncio
 import math
 import os
 import re
@@ -19,6 +20,11 @@ load_dotenv()
 logger = logging.getLogger("plottwistt.collector")
 
 SERPAPI_URL = "https://serpapi.com/search.json"
+LOOKUP_TIMEOUT = 8.0
+SEARCH_TIMEOUT = 10.0
+
+# httpx logs full request URLs (including api_key) at INFO; keep it quiet.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -61,8 +67,8 @@ async def resolve_hierarchical_location(query: str, lat: float | None = None, ln
         "locality": clean.split(",")[0].strip(),
         "corridor": "Bengaluru",
         "city": "Bengaluru",
-        "resolved_lat": lat or 12.9716,
-        "resolved_lng": lng or 77.5946,
+        "resolved_lat": lat,
+        "resolved_lng": lng,
         "display_hierarchy": f"{clean} • Bengaluru",
     }
 
@@ -71,7 +77,7 @@ async def resolve_hierarchical_location(query: str, lat: float | None = None, ln
 
     # Try geocoding with Google Maps via SerpApi to get exact hierarchy & coordinates
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient() as client:
             res = await client.get(
                 SERPAPI_URL,
                 params={
@@ -79,6 +85,7 @@ async def resolve_hierarchical_location(query: str, lat: float | None = None, ln
                     "q": f"{clean} Bangalore",
                     "api_key": api_key,
                 },
+                timeout=LOOKUP_TIMEOUT,
             )
             if res.status_code == 200:
                 data = res.json()
@@ -104,10 +111,52 @@ async def resolve_hierarchical_location(query: str, lat: float | None = None, ln
                     hierarchy["display_hierarchy"] = " ❯ ".join(
                         [p for p in [title, hierarchy.get("locality"), hierarchy.get("corridor"), "Bengaluru"] if p]
                     )
-    except Exception as e:
-        logger.debug("Hierarchy resolution error: %s", e)
+    except Exception as exc:
+        logger.warning("Location lookup failed (%s); using unresolved hierarchy", type(exc).__name__)
 
     return hierarchy
+
+
+async def _run_search(
+    client: httpx.AsyncClient, st: Dict[str, str], api_key: str, clean_loc: str
+) -> List[Dict[str, Any]]:
+    """Run one SerpApi search and normalise its results. Raises on HTTP or network failure."""
+    params = {"engine": st["engine"], "q": st["q"], "api_key": api_key, "gl": "in", "hl": "en"}
+    if st["engine"] == "google":
+        params["num"] = 6
+
+    res = await client.get(SERPAPI_URL, params=params, timeout=SEARCH_TIMEOUT)
+    res.raise_for_status()
+    data = res.json()
+
+    signals: List[Dict[str, Any]] = []
+    if st["engine"] == "google_news":
+        for it in data.get("news_results", [])[:4]:
+            src = it.get("source")
+            src_name = src.get("name", "Local News") if isinstance(src, dict) else str(src or "News")
+            signals.append({
+                "title": it.get("title", ""),
+                "url": it.get("link", ""),
+                "source": src_name,
+                "date": it.get("date", ""),
+                "snippet": it.get("snippet", it.get("title", "")),
+                "category": st["category"],
+                "origin_target": clean_loc,
+            })
+    else:
+        for it in data.get("organic_results", [])[:4]:
+            link = it.get("link", "")
+            if "rajakaluve.org" in link or "youtube.com" in link:
+                continue
+            signals.append({
+                "title": it.get("title", ""),
+                "url": link,
+                "source": it.get("displayed_link", "Civic Source"),
+                "snippet": it.get("snippet", ""),
+                "category": st["category"],
+                "origin_target": clean_loc,
+            })
+    return signals
 
 
 async def collect_location_signals(
@@ -125,93 +174,54 @@ async def collect_location_signals(
     clean_loc = hierarchy["hyperlocal"]
     corridor = hierarchy["corridor"]
 
+    # Search queries across 5 distinct angles
+    search_targets = [
+        # A: Google News for local neighborhood incidents
+        {"engine": "google_news", "q": f'"{clean_loc}" Bangalore', "category": "civic_incident"},
+        # B: Google News for corridor transit/accidents/crime
+        {
+            "engine": "google_news",
+            "q": f"{clean_loc} OR {corridor} Bangalore crime OR police OR accident",
+            "category": "civic_incident",
+        },
+        # C: Land disputes, BDA, illegal layouts, and demolition notices
+        {
+            "engine": "google",
+            "q": f'"{clean_loc}" OR "{corridor}" Bangalore (land dispute OR illegal layout OR demolition OR acquisition OR BDA)',
+            "category": "zoning_buffer_row",
+        },
+        # D: Traffic bottlenecks, heavy vehicles, and road conditions
+        {
+            "engine": "google",
+            "q": f'"{clean_loc}" OR "{corridor}" Bangalore (traffic jam OR road condition OR bottleneck OR pothole OR truck ban)',
+            "category": "civic_neighbor_friction",
+        },
+        # E: Flooding, drainage, waterlogging, or power/water supply cuts
+        {
+            "engine": "google",
+            "q": f'"{clean_loc}" OR "{corridor}" Bangalore (waterlogging OR flood OR drain overflow OR BESCOM power shutdown OR water tanker)',
+            "category": "flooding_drainage",
+        },
+    ]
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(
+            *(_run_search(client, st, api_key, clean_loc) for st in search_targets),
+            return_exceptions=True,
+        )
+
     collected_signals: List[Dict[str, Any]] = []
+    failed = 0
+    for st, result in zip(search_targets, results):
+        if isinstance(result, BaseException):
+            failed += 1
+            # Log only the exception type: httpx messages can embed the request URL and api_key.
+            logger.warning("SerpApi %s search (%s) failed: %s", st["engine"], st["category"], type(result).__name__)
+        else:
+            collected_signals.extend(result)
 
-    async with httpx.AsyncClient(timeout=18.0) as client:
-        # Search Queries across 5 distinct angles
-        search_targets = [
-            # A: Google News for local neighborhood incidents
-            {
-                "engine": "google_news",
-                "q": f'"{clean_loc}" Bangalore',
-                "category": "civic_incident",
-            },
-            # B: Google News for corridor transit/accidents/crime
-            {
-                "engine": "google_news",
-                "q": f"{clean_loc} OR {corridor} Bangalore crime OR police OR accident",
-                "category": "civic_incident",
-            },
-            # C: Land disputes, BDA, illegal layouts, and demolition notices
-            {
-                "engine": "google",
-                "q": f'"{clean_loc}" OR "{corridor}" Bangalore (land dispute OR illegal layout OR demolition OR acquisition OR BDA)',
-                "category": "zoning_buffer_row",
-            },
-            # D: Traffic bottlenecks, heavy vehicles, and road conditions
-            {
-                "engine": "google",
-                "q": f'"{clean_loc}" OR "{corridor}" Bangalore (traffic jam OR road condition OR bottleneck OR pothole OR truck ban)',
-                "category": "civic_neighbor_friction",
-            },
-            # E: Flooding, drainage, waterlogging, or power/water supply cuts
-            {
-                "engine": "google",
-                "q": f'"{clean_loc}" OR "{corridor}" Bangalore (waterlogging OR flood OR drain overflow OR BESCOM power shutdown OR water tanker)',
-                "category": "flooding_drainage",
-            },
-        ]
-
-        for st in search_targets:
-            try:
-                params = {
-                    "engine": st["engine"],
-                    "q": st["q"],
-                    "api_key": api_key,
-                    "gl": "in",
-                    "hl": "en",
-                }
-                if st["engine"] == "google":
-                    params["num"] = 6
-
-                res = await client.get(SERPAPI_URL, params=params)
-                if res.status_code != 200:
-                    continue
-
-                data = res.json()
-                if st["engine"] == "google_news":
-                    items = data.get("news_results", [])
-                    for it in items[:4]:
-                        src_name = (
-                            it.get("source", {}).get("name", "Local News")
-                            if isinstance(it.get("source"), dict)
-                            else str(it.get("source", "News"))
-                        )
-                        collected_signals.append({
-                            "title": it.get("title", ""),
-                            "url": it.get("link", ""),
-                            "source": src_name,
-                            "date": it.get("date", ""),
-                            "snippet": it.get("snippet", it.get("title", "")),
-                            "category": st["category"],
-                            "origin_target": clean_loc,
-                        })
-                else:
-                    items = data.get("organic_results", [])
-                    for it in items[:4]:
-                        link = it.get("link", "")
-                        if "rajakaluve.org" in link or "youtube.com" in link:
-                            continue
-                        collected_signals.append({
-                            "title": it.get("title", ""),
-                            "url": link,
-                            "source": it.get("displayed_link", "Civic Source"),
-                            "snippet": it.get("snippet", ""),
-                            "category": st["category"],
-                            "origin_target": clean_loc,
-                        })
-            except Exception as e:
-                logger.debug("Signal angle query '%s' failed: %s", st["q"], e)
+    if failed == len(search_targets):
+        raise RuntimeError(f"All {failed} SerpApi searches failed")
 
     return {
         "locality": clean_loc,
@@ -222,4 +232,6 @@ async def collect_location_signals(
         "intent": intent,
         "signals": collected_signals,
         "total_signals": len(collected_signals),
+        "failed_searches": failed,
+        "total_searches": len(search_targets),
     }

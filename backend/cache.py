@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 import json
+import logging
+import os
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("plottwistt.cache")
 
 CACHE_DIR = Path(__file__).resolve().parent / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -183,28 +188,35 @@ def make_cache_slug(locality: str, intent: str) -> str:
     return f"{locality_clean}_{intent_clean}"
 
 
-def get_cached_response(locality: str, intent: str) -> Optional[Dict[str, Any]]:
-    """Retrieve cached response if present."""
-    slug = make_cache_slug(locality, intent)
-    cache_file = CACHE_DIR / f"{slug}.json"
-    if not cache_file.exists():
-        return None
+def _cache_file(locality: str, intent: str) -> Path:
+    return CACHE_DIR / f"{make_cache_slug(locality, intent)}.json"
+
+
+def cache_ttl_hours() -> float:
     try:
+        return float(os.getenv("CACHE_TTL_HOURS", "24"))
+    except ValueError:
+        return 24.0
+
+
+def get_cached_response(locality: str, intent: str) -> Optional[Dict[str, Any]]:
+    """Return the cached response for (locality, intent) if younger than CACHE_TTL_HOURS."""
+    cache_file = _cache_file(locality, intent)
+    try:
+        age_seconds = time.time() - cache_file.stat().st_mtime
+        if age_seconds > cache_ttl_hours() * 3600:
+            return None
         with open(cache_file, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except (OSError, ValueError):
         return None
 
 
-def save_cached_response(data: Dict[str, Any]) -> None:
-    """Save response to cache."""
+def save_cached_response(locality: str, intent: str, data: Dict[str, Any]) -> None:
+    """Save a live response under the (locality, intent) key."""
     try:
-        locality = data.get("location", "unknown")
-        intent = data.get("intent", "warehouse")
-        slug = make_cache_slug(locality, intent)
-        cache_file = CACHE_DIR / f"{slug}.json"
-        with open(cache_file, "w", encoding="utf-8") as f:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(_cache_file(locality, intent), "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
-
+    except OSError as exc:
+        logger.warning("Could not write cache file (%s)", type(exc).__name__)

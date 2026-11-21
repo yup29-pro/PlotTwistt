@@ -72,3 +72,49 @@ def test_total_failure_unknown_locality_is_503(client, collector):
 def test_overlong_location_is_422(client, collector):
     res = client.post("/api/analyze", json={"location": "x" * 201, "intent": "plot"})
     assert res.status_code == 422
+
+
+def test_second_call_served_from_cache(client, collector):
+    first = client.post("/api/analyze", json=BELLANDUR).json()
+    second = client.post("/api/analyze", json=BELLANDUR).json()
+    assert first["data_source"] == "live"
+    assert second["data_source"] == "cache"
+    assert second["flags"] == first["flags"]
+    assert collector["calls"] == 1
+
+
+def test_refresh_bypasses_cache(client, collector):
+    client.post("/api/analyze", json=BELLANDUR)
+    res = client.post("/api/analyze?refresh=true", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_cache_key_includes_intent(client, collector):
+    client.post("/api/analyze", json=BELLANDUR)
+    res = client.post("/api/analyze", json={"location": "Bellandur", "intent": "retail"}).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_expired_cache_is_ignored(client, collector, tmp_path, monkeypatch):
+    import os
+    import time
+
+    monkeypatch.setenv("CACHE_TTL_HOURS", "1")
+    client.post("/api/analyze", json=BELLANDUR)
+    old = time.time() - 2 * 3600
+    for f in tmp_path.glob("*.json"):
+        os.utime(f, (old, old))
+    res = client.post("/api/analyze", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_partial_failure_sets_degraded(client, collector):
+    from backend.tests.conftest import make_signals
+
+    collector["result"] = make_signals(failed=2)
+    res = client.post("/api/analyze", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert res["degraded"] is True

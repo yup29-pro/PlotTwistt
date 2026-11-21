@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend import cache
 from backend.cache import PRESETS, get_demo_analysis
 from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
 from backend.serpapi_collector import collect_location_signals
@@ -102,6 +103,11 @@ async def analyze_location(
     locality, lat, lng = _resolve_query(request)
     intent = request.intent.value
 
+    if not refresh:
+        cached = cache.get_cached_response(locality, intent)
+        if cached is not None:
+            return {**cached, "data_source": "cache"}
+
     try:
         logger.info("Executing live SerpApi collector for '%s' (%s)...", locality, intent)
         raw_signals = await collect_location_signals(locality, intent, lat, lng)
@@ -115,4 +121,5 @@ async def analyze_location(
         degraded=raw_signals.get("failed_searches", 0) > 0,
         analyzed_at=_utc_now(),
     )
+    cache.save_cached_response(locality, intent, result)
     return result
