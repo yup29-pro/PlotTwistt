@@ -5,7 +5,8 @@ import land110m from 'world-atlas/land-110m.json';
 
 /**
  * Dotted-continent globe: land sampled on an even ~2° grid, drawn on an orthographic
- * projection. Always spins (15°/s, 1°/s with reduced motion); drag or arrow keys to turn it,
+ * projection. Always spins (0.54 rad/s ≈ 31°/s, one turn in ~12 s; 1°/s with reduced motion),
+ * time-based so 60 Hz and 120 Hz screens match; drag or arrow keys to turn it,
  * with inertia on release.
  */
 
@@ -98,7 +99,8 @@ export default function InteractiveGlobe({ style = {} }) {
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
-    const SPIN_DEG_PER_S = 15;
+    // 0.009 rad per frame at 60 fps, expressed per second so the speed doesn't depend on refresh rate.
+    const SPIN_RAD_PER_S = 0.009 * 60; // 0.54 rad/s ≈ 31°/s
     const SPIN_REDUCED_DEG_PER_S = 1;
     let lastFrame = performance.now();
     const clampPhi = (v) => Math.max(-80, Math.min(80, v));
@@ -156,7 +158,7 @@ export default function InteractiveGlobe({ style = {} }) {
           velPhi *= 0.94;
         }
         // Constant slow spin, eastward like the real Earth; it carries on after a drag.
-        lambda -= (reducedMotion ? SPIN_REDUCED_DEG_PER_S : SPIN_DEG_PER_S) * dt;
+        lambda -= (reducedMotion ? SPIN_REDUCED_DEG_PER_S : SPIN_RAD_PER_S / DEG) * dt; // lambda is in degrees
       }
 
       const cx = width / 2;
