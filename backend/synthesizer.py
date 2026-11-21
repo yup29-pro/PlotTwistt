@@ -127,6 +127,25 @@ def classify_signal(text: str, intent: str) -> Tuple[str, str]:
     return "civic_neighbor_friction", "low"
 
 
+# Directory, index or listing pages: "X - Index", "Home | X", "Contact Us - X", "X - Official Website".
+DIRECTORY_TITLE = re.compile(
+    r"(?:^|[-|–:]\s*)(?:index|home(?: ?page)?|contact(?: us)?|directory|listings?)\s*(?:$|[-|–:])"
+    r"|\bofficial (?:website|web ?site|portal)\b",
+    re.IGNORECASE,
+)
+# Business/hotel openings; only noise when the title carries no friction keyword.
+OPENING_TITLE = _words(r"opens?", r"opening", r"launch(?:es|ed)?", r"expands?", r"expansion", r"inaugurat\w*", r"unveils?")
+
+
+def is_noise_title(title: str) -> bool:
+    """True for directory/index/listing pages and promotional openings without friction keywords."""
+    if DIRECTORY_TITLE.search(title):
+        return True
+    if OPENING_TITLE.search(title):
+        return not any(pattern.search(title) for _, _, pattern in TOPIC_RULES)
+    return False
+
+
 def _explanation(category: str, clean_loc: str, corridor: Optional[str]) -> str:
     return {
         "zoning_buffer_row": f"Public record near {clean_loc} points to zoning, buffer, demolition or land-title scrutiny.",
@@ -155,7 +174,7 @@ async def synthesize_friction_report(
         title = item.get("title") or ""
         snippet = item.get("snippet") or title
 
-        if not title or len(title) < 10 or url in seen_urls:
+        if not title or len(title) < 10 or url in seen_urls or is_noise_title(title):
             continue
 
         seen_urls.add(url)
