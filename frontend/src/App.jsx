@@ -16,6 +16,7 @@ import MapCanvas from './components/MapCanvas';
 import FrictionFeed from './components/FrictionFeed';
 import ReceiptDrawer from './components/ReceiptDrawer';
 import OnboardingFlow from './components/OnboardingFlow';
+import useAutoHideBar from './hooks/useAutoHideBar';
 import {
   SAMPLE_PRESETS,
   SAMPLE_ANALYSES,
@@ -48,6 +49,7 @@ export default function App() {
   const [useSampleData, setUseSampleData] = useState(false);
   const [selectedFlag, setSelectedFlag] = useState(null);
   const [backendConnected, setBackendConnected] = useState(null);
+  const topBar = useAutoHideBar(7);
 
   // Check backend health on initial load
   useEffect(() => {
@@ -72,15 +74,19 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  // Perform Analysis Scan
-  const handleScan = async () => {
+  // Perform Analysis Scan. `pick` (a chosen suggestion) overrides the current box and pin,
+  // because state set just before this call isn't visible yet.
+  const handleScan = async (pick) => {
+    const location = pick?.name ?? selectedLocation;
+    const lat = pick ? pick.lat : coordinates.lat;
+    const lng = pick ? pick.lng : coordinates.lng;
     setIsLoading(true);
     setErrorNotice(null);
 
     // If Sample Data mode is explicitly toggled ON
     if (useSampleData) {
       setTimeout(() => {
-        const sample = getSampleAnalysis(selectedLocation, intent);
+        const sample = getSampleAnalysis(location, intent);
         setAnalysis(sample ? { ...sample, data_source: 'demo' } : null);
         if (!sample) setErrorNotice('No sample data exists for this location.');
         setIsLoading(false);
@@ -93,9 +99,10 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          location: selectedLocation,
-          lat: coordinates.lat,
-          lng: coordinates.lng,
+          location,
+          // null when the user typed a place without picking a suggestion: the backend geocodes it.
+          lat,
+          lng,
           intent: intent,
         }),
       });
@@ -117,7 +124,7 @@ export default function App() {
       console.warn('Backend request failed; falling back to offline radar sample data:', err);
       setBackendConnected(false);
       // Offline sample data only exists for the demo localities.
-      const sample = getSampleAnalysis(selectedLocation, intent);
+      const sample = getSampleAnalysis(location, intent);
       setErrorNotice(
         sample
           ? 'Backend server is unreachable. Showing offline sample data, not live results for this location.'
@@ -148,8 +155,13 @@ export default function App() {
     >
       {/* Top Application Header */}
       <header
+        {...topBar.barProps}
         style={{
           height: '56px',
+          flexShrink: 0,
+          transform: topBar.hidden ? 'translateY(-100%)' : 'translateY(0)',
+          marginTop: topBar.hidden ? '-56px' : '0px',
+          transition: 'transform 250ms ease, margin-top 250ms ease',
           padding: '0 20px',
           background: 'var(--bg-panel)',
           borderBottom: '1px solid var(--border-subtle)',
@@ -447,6 +459,7 @@ export default function App() {
             isLoading={isLoading}
             onSelectFlag={(flag) => setSelectedFlag(flag)}
             selectedFlagId={selectedFlag?.id}
+            onScroll={topBar.onScroll}
           />
         </section>
       </div>

@@ -68,6 +68,7 @@ export default function FrictionFeed({
   isLoading,
   onSelectFlag,
   selectedFlagId,
+  onScroll,
 }) {
   const [activeCategory, setActiveCategory] = useState('All');
 
@@ -209,14 +210,17 @@ export default function FrictionFeed({
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--bg-panel)',
-        overflow: 'hidden',
+        // The whole panel is one scroll area; the filter chips stick once they reach the top.
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        overscrollBehavior: 'contain',
       }}
+      onScroll={onScroll}
     >
       {/* Top Header Card: Overall Risk & Summary */}
       <div
         style={{
-          padding: '20px',
-          borderBottom: '1px solid var(--border-subtle)',
+          padding: '20px 20px 6px',
           background: 'var(--bg-panel)',
           display: 'flex',
           flexDirection: 'column',
@@ -334,9 +338,21 @@ export default function FrictionFeed({
             <span>Some sources didn't respond, so this scan may be incomplete. Scan again later for a fuller picture.</span>
           </div>
         ) : null}
+      </div>
 
-        {/* Category Filter Pills */}
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      {/* Category Filter Pills (sticky) */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 5,
+          background: 'var(--bg-panel)',
+          padding: '8px 20px 20px',
+          borderBottom: '1px solid var(--border-subtle)',
+          flexShrink: 0,
+        }}
+      >
+        <div role="group" aria-label="Filter signals by category" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {categories.map((cat) => {
             const active = activeCategory === cat.id;
             return (
@@ -380,8 +396,7 @@ export default function FrictionFeed({
       {/* Flag List Feed */}
       <div
         style={{
-          flex: 1,
-          overflowY: 'auto',
+          flexShrink: 0,
           padding: '16px',
           display: 'flex',
           flexDirection: 'column',

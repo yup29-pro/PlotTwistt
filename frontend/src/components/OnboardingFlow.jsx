@@ -13,10 +13,12 @@ import {
   Users
 } from 'lucide-react';
 import InteractiveGlobe from './InteractiveGlobe';
+import useAutoHideBar from '../hooks/useAutoHideBar';
 
 export default function OnboardingFlow({ onComplete }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [name, setName] = useState('');
+  const navBar = useAutoHideBar(7);
 
   const slides = [
     {
@@ -81,14 +83,20 @@ export default function OnboardingFlow({ onComplete }) {
         background: 'var(--bg-panel)',
         color: 'var(--text-main)',
         display: 'flex',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
         position: 'relative',
       }}
+      onScroll={navBar.onScroll}
     >
       {/* Top Navbar */}
       <nav
+        {...navBar.barProps}
         style={{
-          position: 'absolute',
+          position: 'fixed',
+          transform: navBar.hidden ? 'translateY(-100%)' : 'translateY(0)',
+          transition: 'transform 250ms ease',
+          background: 'rgba(218, 219, 214, 0.85)',
           top: 0,
           left: 0,
           right: 0,
@@ -175,7 +183,7 @@ export default function OnboardingFlow({ onComplete }) {
       <div
         style={{
           flex: '1 1 52%',
-          height: '100%',
+          minHeight: '100%',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',

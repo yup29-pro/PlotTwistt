@@ -19,6 +19,7 @@ from backend.cache import PRESETS, get_demo_analysis
 from backend.geodata import collect_water_hazards
 from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
 from backend.serpapi_collector import collect_location_signals
+from backend.suggest import suggest as suggest_places
 from backend.synthesizer import compute_friction_score, synthesize_friction_report
 
 load_dotenv()
@@ -47,29 +48,40 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-# Simple in-memory per-IP rate limit for /api/analyze (single process only).
-RATE_LIMIT_REQUESTS = 10
+# Simple in-memory per-IP rate limits (single process only).
+RATE_LIMIT_REQUESTS = 10  # /api/analyze
+SUGGEST_RATE_LIMIT_REQUESTS = 60  # /api/suggest: debounced keystrokes, so a higher ceiling
 RATE_LIMIT_WINDOW_SECONDS = 60.0
 _rate_buckets: Dict[str, Deque[float]] = defaultdict(deque)
+_suggest_buckets: Dict[str, Deque[float]] = defaultdict(deque)
 
 
 def reset_rate_limits() -> None:
     _rate_buckets.clear()
+    _suggest_buckets.clear()
 
 
-def enforce_rate_limit(request: Request) -> None:
+def _check_rate(request: Request, buckets: Dict[str, Deque[float]], limit: int, what: str) -> None:
     ip = request.client.host if request.client else "unknown"
     now = time.monotonic()
-    bucket = _rate_buckets[ip]
+    bucket = buckets[ip]
     while bucket and now - bucket[0] >= RATE_LIMIT_WINDOW_SECONDS:
         bucket.popleft()
-    if len(bucket) >= RATE_LIMIT_REQUESTS:
+    if len(bucket) >= limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit exceeded: at most {RATE_LIMIT_REQUESTS} analyses per minute.",
+            detail=f"Rate limit exceeded: at most {limit} {what} per minute.",
             headers={"Retry-After": str(int(RATE_LIMIT_WINDOW_SECONDS - (now - bucket[0])) + 1)},
         )
     bucket.append(now)
+
+
+def enforce_rate_limit(request: Request) -> None:
+    _check_rate(request, _rate_buckets, RATE_LIMIT_REQUESTS, "analyses")
+
+
+def enforce_suggest_rate_limit(request: Request) -> None:
+    _check_rate(request, _suggest_buckets, SUGGEST_RATE_LIMIT_REQUESTS, "suggestion lookups")
 
 
 @app.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
@@ -87,6 +99,18 @@ def health_check():
 def get_presets():
     """Return curated reference locations with distinct friction profiles."""
     return PRESETS
+
+
+@app.get("/api/suggest", status_code=status.HTTP_200_OK, dependencies=[Depends(enforce_suggest_rate_limit)])
+async def suggest_endpoint(q: str = Query(default="", max_length=200)) -> List[Dict[str, Any]]:
+    """Up to 6 place suggestions {name, area, lat, lng} for the search box."""
+    text = q.strip()
+    if not 2 <= len(text) <= 60:
+        raise HTTPException(
+            status_code=422,
+            detail="Search text must be 2 to 60 characters.",
+        )
+    return await suggest_places(text)
 
 
 def _utc_now() -> str:

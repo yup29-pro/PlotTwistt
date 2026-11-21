@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   MapPin,
@@ -22,6 +22,24 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom Radar Pulsing Marker Icon
+const SUGGEST_MIN_CHARS = 2;
+const SUGGEST_DEBOUNCE_MS = 250;
+
+// Bold the part of `text` that matches `query` (case-insensitive); fuzzy hits stay plain.
+function HighlightMatch({ text, query }) {
+  const q = query.trim().toLowerCase();
+  const i = q ? text.toLowerCase().indexOf(q) : -1;
+  if (i < 0) return <span>{text}</span>;
+  const end = i + q.length;
+  return (
+    <span>
+      {text.slice(0, i)}
+      <strong style={{ fontWeight: 700 }}>{text.slice(i, end)}</strong>
+      {text.slice(end)}
+    </span>
+  );
+}
+
 // Selected pin: dark-glass badge, white icon, accent ring and a small accent badge with the risk letter (H / M / L).
 function createRadarIcon(label = '') {
   return L.divIcon({
@@ -109,7 +127,17 @@ export default function MapCanvas({
 
     mapInstanceRef.current = map;
 
+    // Keep tiles filling the container when the layout around it changes (e.g. the header hides).
+    let resizeFrame = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+    });
+    resizeObserver.observe(mapContainerRef.current);
+
     return () => {
+      resizeObserver.disconnect();
+      cancelAnimationFrame(resizeFrame);
       map.remove();
       mapInstanceRef.current = null;
     };
@@ -126,6 +154,11 @@ export default function MapCanvas({
     if (bufferCircleRef.current) {
       map.removeLayer(bufferCircleRef.current);
       bufferCircleRef.current = null;
+    }
+    // Typed place without a picked suggestion: no pin until the backend looks it up.
+    if (coordinates.lat == null || coordinates.lng == null) {
+      activeMarkerRef.current = null;
+      return;
     }
     // Red 75 m NGT buffer ring when OpenStreetMap puts a lake inside it.
     if (lakeBufferBreach) {
@@ -185,6 +218,100 @@ export default function MapCanvas({
     }
   };
 
+  // ---- Search suggestions (ARIA combobox) ----
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [typedQuery, setTypedQuery] = useState('');
+  const searchBoxRef = useRef(null);
+
+  // Debounced fetch, only for text the user typed (not presets, map clicks or picks).
+  useEffect(() => {
+    const q = typedQuery.trim();
+    if (q.length < SUGGEST_MIN_CHARS) {
+      setSuggestions([]);
+      setSuggestOpen(false);
+      return undefined;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`, { signal: controller.signal });
+        if (!res.ok) return;
+        const items = await res.json();
+        const list = Array.isArray(items) ? items : [];
+        setSuggestions(list);
+        setActiveIndex(-1);
+        setSuggestOpen(list.length > 0);
+      } catch {
+        // Aborted or offline: the box still works without suggestions.
+      }
+    }, SUGGEST_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [typedQuery]);
+
+  // Clicking outside closes the list.
+  useEffect(() => {
+    if (!suggestOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) setSuggestOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [suggestOpen]);
+
+  const closeSuggestions = () => {
+    setSuggestOpen(false);
+    setActiveIndex(-1);
+  };
+
+  const handleSearchInput = (value) => {
+    setSelectedLocation(value);
+    // Typed without picking: clear the pin so the backend geocodes the text.
+    setCoordinates({ lat: null, lng: null });
+    setTypedQuery(value);
+  };
+
+  const pickSuggestion = (item) => {
+    closeSuggestions();
+    setTypedQuery('');
+    setSelectedLocation(item.name);
+    setCoordinates({ lat: item.lat, lng: item.lng });
+    if (mapInstanceRef.current) mapInstanceRef.current.flyTo([item.lat, item.lng], 14, { duration: 1 });
+    onScan({ name: item.name, lat: item.lat, lng: item.lng });
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!suggestions.length) return;
+      setSuggestOpen(true);
+      setActiveIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!suggestions.length) return;
+      setSuggestOpen(true);
+      setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === 'Enter') {
+      if (suggestOpen && activeIndex >= 0 && suggestions[activeIndex]) {
+        e.preventDefault();
+        pickSuggestion(suggestions[activeIndex]);
+      } else {
+        closeSuggestions();
+      }
+    } else if (e.key === 'Escape' && suggestOpen) {
+      e.preventDefault();
+      closeSuggestions();
+    }
+  };
+
+  const hasCoords = coordinates.lat != null && coordinates.lng != null;
+  const listboxId = 'site-suggestions';
+  const optionId = (i) => `site-suggestion-${i}`;
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Top Search & Intent Radar HUD Bar */}
@@ -214,16 +341,26 @@ export default function MapCanvas({
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
+            position: 'relative',
+            zIndex: 2, // keeps the suggestion list above the preset row
           }}
         >
           {/* Location Search Input */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-              <MapPin size={18} color="#FFFFFF" />
+            <div ref={searchBoxRef} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, position: 'relative' }}>
+              <MapPin size={18} color="#FFFFFF" aria-hidden="true" />
               <input
                 type="text"
+                role="combobox"
+                aria-expanded={suggestOpen}
+                aria-controls={listboxId}
+                aria-autocomplete="list"
+                aria-activedescendant={suggestOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+                autoComplete="off"
+                spellCheck={false}
                 value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
+                onChange={(e) => handleSearchInput(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Search a locality or landmark"
                 aria-label="Site to scan"
                 style={{
@@ -237,6 +374,66 @@ export default function MapCanvas({
                   fontFamily: 'inherit',
                 }}
               />
+              <ul
+                id={listboxId}
+                role="listbox"
+                aria-label="Suggested places"
+                hidden={!suggestOpen}
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 16px)',
+                  left: '-8px',
+                  right: '-8px',
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: '6px',
+                  background: 'rgba(255, 255, 255, 0.92)',
+                  backdropFilter: 'var(--glass-filter)',
+                  WebkitBackdropFilter: 'var(--glass-filter)',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: '16px',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
+                  zIndex: 10,
+                }}
+              >
+                {suggestions.map((item, i) => (
+                  <li
+                    key={`${item.name}-${item.lat}-${item.lng}`}
+                    id={optionId(i)}
+                    role="option"
+                    aria-selected={i === activeIndex}
+                    onPointerDown={(e) => e.preventDefault() /* keep focus in the input */}
+                    onClick={() => pickSuggestion(item)}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      padding: '8px 12px',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      background: i === activeIndex ? 'var(--chip)' : 'transparent',
+                      boxShadow: i === activeIndex ? 'inset 0 0 0 1px var(--accent)' : 'none',
+                      color: 'var(--text-main)',
+                      fontSize: 'var(--text-base)',
+                      fontWeight: 400,
+                    }}
+                  >
+                    <HighlightMatch text={item.name} query={typedQuery} />
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {item.area}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <span
+                role="status"
+                aria-live="polite"
+                style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}
+              >
+                {suggestOpen ? `${suggestions.length} suggestions. Use the up and down arrows to choose.` : ''}
+              </span>
             </div>
 
             {/* Coordinates Badge */}
@@ -252,12 +449,12 @@ export default function MapCanvas({
                 whiteSpace: 'nowrap',
               }}
             >
-              {coordinates.lat.toFixed(4)}, {coordinates.lng.toFixed(4)}
+              {hasCoords ? `${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}` : 'Located on scan'}
             </div>
 
             {/* Scan Trigger Button */}
             <button
-              onClick={onScan}
+              onClick={() => onScan()}
               disabled={isLoading}
               aria-busy={isLoading}
               style={{
