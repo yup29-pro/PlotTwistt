@@ -25,7 +25,7 @@ PlotTwistt/
 ├── backend/
 │   ├── __init__.py
 │   ├── requirements.txt      # FastAPI, uvicorn, pydantic, httpx, pytest
-│   ├── schemas.py            # Pydantic schemas (Intent, Location, Receipt, AnalysisResult)
+│   ├── schemas.py            # Pydantic schemas (AnalyzeRequest, Flag, AnalyzeResponse, Preset)
 │   ├── cache.py              # File-based caching, presets, and safe demo fallbacks
 │   ├── main.py               # FastAPI entrypoint (/health, /api/presets, /api/analyze)
 │   ├── serpapi_collector.py  # SerpApi signal extractor [Owned by Teammate 1]
@@ -86,14 +86,14 @@ venv\Scripts\activate
 pip install -r backend/requirements.txt
 
 # Run test suite
-pytest backend/tests/test_api.py -v
+python -m pytest -q backend/tests   # fully mocked, no network
 
 # Start FastAPI server
 uvicorn backend.main:app --reload --port 8000
 ```
 
 ### 2. Available Endpoints
-- **Health check:** `GET http://localhost:8000/health`
+- **Health check:** `GET http://localhost:8000/health` (alias `/api/health`)
 - **Curated Demo Presets:** `GET http://localhost:8000/api/presets`
 - **Analyze Site:** `POST http://localhost:8000/api/analyze` (Supports `?refresh=true` to force live recalculation)
 - **Interactive OpenAPI docs:** `http://localhost:8000/docs`
@@ -101,6 +101,6 @@ uvicorn backend.main:app --reload --port 8000
 ---
 
 ## 🛡️ Built-in Demo Reliability
-- **Smart Response Caching**: Results are cached in `backend/cache/<slug>.json` to ensure zero token wastage and instant replay during live demos.
-- **Fail-Safe Fallback**: If external API keys expire, hit quota limits, or network drops, `backend/cache.py` automatically produces structured demo responses matching the `SPEC.md` contract with realistic friction points and receipt citations.
+- **Response caching**: Live results are cached in `backend/cache/<locality>_<intent>.json` for `CACHE_TTL_HOURS` (default 24) and served with `data_source: "cache"`. Use `?refresh=true` to bypass.
+- **Demo fallback**: If live collection fails entirely, the four preset localities return curated sample data marked `data_source: "demo"` (the UI shows a DEMO banner). Any other locality returns HTTP 503 rather than borrowed data.
 

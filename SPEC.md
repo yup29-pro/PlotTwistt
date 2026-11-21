@@ -13,147 +13,103 @@
 
 ## 2. Shared Data Models
 
-### Location
+The Pydantic models in `backend/schemas.py` are the source of truth; every route declares `response_model=`.
+
+### Intent
+`warehouse` | `retail` | `plot`
+
+### Category
+- `flooding_drainage` – waterlogging, rain, drains, rajakaluve, stormwater overflow
+- `zoning_buffer_row` – lake buffers (NGT), demolition, road widening, land acquisition, disputes, illegal layouts
+- `civic_neighbor_friction` – crime, traffic, potholes, parking/towing, protests, noise, utility outages
+- `access_infrastructure` – heavy-vehicle bans, narrow approach roads, low bridges, power-line clearance
+
+### Severity
+- `low`: informational or minor historic occurrence.
+- `medium`: notable constraint requiring verification or operational adjustments.
+- `high`: major barrier, legal block, or severe recurring disruption.
+
+Severity is assigned per intent from the sensitivities in section 1 (e.g. flooding and heavy-vehicle bans are `high` for `warehouse`; parking/towing and road widening are `high` for `retail`; buffers, land disputes and power-line clearance are `high` for `plot`).
+
+### Flag
 ```json
 {
-  "lat": 12.9716,
-  "lng": 77.5946,
-  "address": "Bellandur Outer Ring Road, Bengaluru",
-  "locality": "Bellandur",
-  "city": "Bengaluru"
-}
-```
-
-### Risk Category
-One of:
-- `flooding_drainage` (Waterlogging, rajakaluve, low elevation)
-- `zoning_legal` (Lake buffer, demolition notices, road widening, land dispute)
-- `civic_friction` (Garbage dump, traffic bottleneck, industrial noise, neighbor protest)
-- `access_infrastructure` (Power line clearance, narrow approach, heavy vehicle ban)
-
-### Severity Level
-- `low`: Informational or minor historic occurrence.
-- `medium`: Notable constraint requiring verification or operational adjustments.
-- `high`: Major barrier, legal block, or severe recurring disruption.
-
-### Receipt (Source Citation)
-Every friction point MUST link to a verifiable receipt trail:
-```json
-{
-  "title": "Outer Ring Road flooded after heavy rain, tech corridor blocked",
-  "source": "Deccan Herald",
-  "url": "https://www.deccanherald.com/example-flood-news",
-  "exact_quote": "Water entered basement parking lots along the Bellandur lake basin...",
-  "published_date": "2023-09-05"
-}
-```
-
-### Friction Point
-```json
-{
+  "id": "flag-1",
   "category": "flooding_drainage",
-  "title": "Severe Lake Basin Waterlogging & Overflow",
-  "summary": "Basement and access road inundation recorded during monsoon seasons due to proximity to lake overflow channels.",
   "severity": "high",
-  "receipts": [ ...Receipt... ]
+  "headline": "Civic Infrastructure & Drainage: Bellandur lake overflow floods Outer Ring Road",
+  "explanation": "Monsoon drainage conditions or stormwater channels reported in Bellandur.",
+  "quote": "Stormwater drains overflowed near Bellandur, flooding basements.",
+  "source_title": "Deccan Herald - Bellandur lake overflow floods Outer Ring Road",
+  "url": "https://www.deccanherald.com/...",
+  "distance_km": null,
+  "distance_label": "Mentions locality",
+  "proximity_tier": "hyperlocal"
 }
 ```
+- `distance_km` is only set when the source signal carries real coordinates (haversine from the target). Otherwise it is `null` and the tier comes from text mentions: `hyperlocal` ("Mentions locality"), `corridor` ("Mentions corridor"), `district` ("Area-level").
+- Flags are sorted by tier (hyperlocal first), then severity (high first).
+- `url` is the publisher link. The frontend only renders it as a link if it starts with `http://` or `https://`.
 
-### Overall Friction Score
-- `0 - 30`: Low Friction (Green / relatively clean site record)
-- `31 - 70`: Moderate Friction (Yellow / caution advised, site checks required)
-- `71 - 100`: High Friction (Red / major historical and civic roadblocks)
+### AnalyzeResponse
+```json
+{
+  "location": "Bellandur",
+  "hierarchy": { "hyperlocal": "Bellandur", "locality": "Bellandur", "corridor": "Outer Ring Road", "city": "Bengaluru" },
+  "overall_risk": "high",
+  "summary": "Radar scan for Bellandur found 7 public friction signals...",
+  "flags": [ ...Flag... ],
+  "total_flags": 7,
+  "data_source": "live",
+  "degraded": false,
+  "analyzed_at": "2026-11-21T11:15:00+00:00"
+}
+```
+- `overall_risk` is computed from real flags only. With 0 flags it is `low` and the summary says few public signals were found. No filler flags are ever added.
+- `data_source`: `live` (fresh SerpApi results), `cache` (served from the file cache), `demo` (curated sample data, shown with a DEMO banner).
+- `degraded`: `true` when some of the live searches failed, or when demo data is served because live collection failed.
+- `analyzed_at`: ISO 8601 UTC timestamp.
+
+### Preset
+```json
+{ "id": "bellandur-lake-corridor", "name": "Bellandur Lake Buffer, Bengaluru", "lat": 12.9352, "lng": 77.6744, "intent": "warehouse", "description": "..." }
+```
 
 ---
 
 ## 3. Endpoints
 
-### 1. `GET /health`
-Returns service status.
-**Response `200 OK`**:
+### `GET /health` (alias `GET /api/health`)
 ```json
-{
-  "status": "ok",
-  "service": "PlotTwistt Radar API",
-  "timestamp": "2026-11-21T11:15:00Z"
-}
+{ "status": "ok", "service": "PlotTwistt Radar API", "timestamp": "2026-11-21T11:15:00+00:00" }
 ```
 
-### 2. `GET /api/presets`
-Returns curated reference locations for immediate demo and testing without consuming live API tokens.
-**Response `200 OK`**:
+### `GET /api/presets`
+Returns `Preset[]`.
+
+### `POST /api/analyze?refresh=false`
+
+**Query parameters**
+- `refresh` (bool, default `false`): skip the cache read and run a live collection.
+
+**Request body**
 ```json
-[
-  {
-    "id": "bellandur-tech-corridor",
-    "name": "Bellandur ORR (Lake Buffer & Flood Prone)",
-    "location": {
-      "lat": 12.9298,
-      "lng": 77.6749,
-      "address": "Bellandur ORR, Bengaluru, Karnataka",
-      "locality": "Bellandur",
-      "city": "Bengaluru"
-    },
-    "intent": "warehouse",
-    "description": "High friction zone: Lake buffer encroachments, recurring monsoon waterlogging, tech corridor traffic."
-  },
-  ...
-]
+{ "location": "Bellandur", "lat": 12.9352, "lng": 77.6744, "intent": "warehouse" }
 ```
-
-### 3. `POST /api/analyze?refresh=false`
-Submits a location and intent to run friction radar analysis.
-
-**Query Parameters**:
-- `refresh` (boolean, optional, default `false`): If `true`, bypasses cache and forces live retrieval from SerpApi + You.com.
-
-**Request Body**:
+or
 ```json
-{
-  "location": {
-    "lat": 12.9298,
-    "lng": 77.6749,
-    "address": "Bellandur ORR, Bengaluru",
-    "locality": "Bellandur",
-    "city": "Bengaluru"
-  },
-  "intent": "warehouse"
-}
+{ "location": { "locality": "Bellandur", "address": "Bellandur ORR", "lat": 12.9352, "lng": 77.6744, "city": "Bengaluru" }, "intent": "warehouse" }
 ```
+- `location`: string (1–200 chars) or the location object. `lat`/`lng` are optional, constrained to [-90, 90] / [-180, 180].
+- `intent`: an Intent value (default `warehouse`).
 
-**Response `200 OK`**:
-```json
-{
-  "query": {
-    "location": { ... },
-    "intent": "warehouse"
-  },
-  "friction_score": 82,
-  "verdict": "High Civic & Waterlogging Friction",
-  "summary": "Site exhibits critical flood vulnerabilities during heavy monsoon downpours and sits adjacent to NGT-designated lake buffer zones.",
-  "friction_points": [
-    {
-      "category": "flooding_drainage",
-      "title": "Severe Monsoon Waterlogging",
-      "summary": "Access road submersion and basement flooding reported repeatedly.",
-      "severity": "high",
-      "receipts": [
-        {
-          "title": "Bengaluru rain: Bellandur tech corridor flooded again",
-          "source": "The Hindu",
-          "url": "https://www.thehindu.com/news/cities/bangalore/bellandur-floods",
-          "exact_quote": "Service roads remained inundated for over 48 hours after heavy rains.",
-          "published_date": "2024-05-18"
-        }
-      ]
-    }
-  ],
-  "positive_signals": [
-    "Well-connected arterial corridor with multi-lane Outer Ring Road frontage",
-    "Heavy commercial density and robust telecom infrastructure"
-  ],
-  "cached": true,
-  "analyzed_at": "2026-11-21T11:15:00Z"
-}
-```
+**Behaviour**
+1. Unless `refresh=true`, a cached result for (locality, intent) younger than `CACHE_TTL_HOURS` (default 24) is returned with `data_source: "cache"`.
+2. Otherwise SerpApi is queried (5 searches in parallel). Successful results are cached and returned with `data_source: "live"`; `degraded: true` if some searches failed.
+3. If collection fails entirely: a known demo locality (Bellandur, Peenya, Indiranagar, Sarjapur) returns demo data with `data_source: "demo"`; any other locality returns **503**.
 
+**Responses**
+- `200` – `AnalyzeResponse`
+- `422` – invalid body (unknown intent, out-of-range coordinates, overlong location)
+- `429` – more than 10 requests per minute from one IP
+- `503` – live data unavailable and no demo data for this locality

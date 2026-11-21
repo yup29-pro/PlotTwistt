@@ -7,11 +7,10 @@ Calculates estimated proximity radius (e.g. '0.8 km from target') and ranks clos
 from __future__ import annotations
 import hashlib
 import random
-import re
 from typing import Any, Dict, List
 
 
-def estimate_event_distance(target_locality: str, text: str, source_category: str) -> Dict[str, Any]:
+def estimate_event_distance(target_locality: str, text: str) -> Dict[str, Any]:
     """Estimate approximate radial distance of the event relative to target."""
     clean_target = target_locality.lower().strip()
     text_lower = text.lower()
@@ -95,7 +94,7 @@ async def synthesize_friction_report(
             explanation = f"Local observation regarding commerce and accessibility in {clean_loc}."
 
         # Compute estimated distance from target
-        dist_meta = estimate_event_distance(clean_loc, f"{title} {snippet}", category)
+        dist_meta = estimate_event_distance(clean_loc, f"{title} {snippet}")
 
         flags.append({
             "id": f"flag-{len(flags) + 1}",

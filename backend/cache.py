@@ -3,7 +3,6 @@
 from __future__ import annotations
 import json
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -210,11 +209,3 @@ def save_cached_response(data: Dict[str, Any]) -> None:
     except Exception:
         pass
 
-
-def get_fallback_response(request: Any) -> Dict[str, Any]:
-    """Legacy helper."""
-    loc = getattr(request, "location", "Bellandur")
-    intent = getattr(request, "intent", "warehouse")
-    if not isinstance(loc, str):
-        loc = getattr(loc, "locality", "Bellandur")
-    return get_frontend_compatible_fallback(str(loc), str(intent))
