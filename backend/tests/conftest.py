@@ -52,6 +52,11 @@ def isolate(monkeypatch, tmp_path):
     monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
     monkeypatch.setattr(cache, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(httpx.AsyncClient, "send", _no_network)
+
+    async def no_hazards(lat, lng):
+        return []
+
+    monkeypatch.setattr(main, "collect_water_hazards", no_hazards)
     reset = getattr(main, "reset_rate_limits", None)
     if reset:
         reset()

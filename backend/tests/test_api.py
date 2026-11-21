@@ -185,3 +185,59 @@ def test_zero_flag_results_are_not_cached(client, collector, tmp_path):
     assert res["data_source"] == "live"
     assert collector["calls"] == 2
     assert list(tmp_path.glob("*.json")) == []
+
+
+WITH_PIN = {"location": "Bellandur", "lat": 12.9352, "lng": 77.6744, "intent": "plot"}
+
+
+def test_lake_inside_buffer_is_flagged_and_scored(client, collector, monkeypatch):
+    import backend.main as main
+    from backend.geodata import hazard_flag
+
+    async def lake(lat, lng):
+        return [hazard_flag({"id": 42, "kind": "lake", "name": "Bellandur Lake", "distance_m": 40})]
+
+    monkeypatch.setattr(main, "collect_water_hazards", lake)
+    body = AnalyzeResponse.model_validate(client.post("/api/analyze", json=WITH_PIN).json())
+    assert body.lake_buffer_breach is True
+    assert body.flags[0].url == "https://www.openstreetmap.org/way/42"
+    assert body.flags[0].distance_km == 0.04
+    assert body.friction_score >= 25
+    assert body.degraded is False
+
+
+def test_geodata_failure_degrades_but_succeeds(client, collector, monkeypatch):
+    import backend.main as main
+
+    async def boom(lat, lng):
+        raise RuntimeError("overpass down")
+
+    monkeypatch.setattr(main, "collect_water_hazards", boom)
+    body = client.post("/api/analyze", json=WITH_PIN).json()
+    assert body["data_source"] == "live" and body["degraded"] is True
+
+
+def test_synthesizer_failure_returns_degraded_not_500(client, collector, monkeypatch):
+    import backend.main as main
+
+    async def broken(*args, **kwargs):
+        raise ValueError("bad signal")
+
+    monkeypatch.setattr(main, "synthesize_friction_report", broken)
+    res = client.post("/api/analyze", json=BELLANDUR)
+    assert res.status_code == 200
+    assert res.json()["degraded"] is True
+
+
+def test_geodata_failure_alone_does_not_block_caching(client, collector, monkeypatch):
+    import backend.main as main
+
+    async def boom(lat, lng):
+        raise RuntimeError("overpass down")
+
+    monkeypatch.setattr(main, "collect_water_hazards", boom)
+    first = client.post("/api/analyze", json=WITH_PIN).json()
+    second = client.post("/api/analyze", json=WITH_PIN).json()
+    assert first["degraded"] is True
+    assert second["data_source"] == "cache"
+    assert collector["calls"] == 1

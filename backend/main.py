@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -15,9 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend import cache
 from backend.cache import PRESETS, get_demo_analysis
+from backend.geodata import collect_water_hazards
 from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
 from backend.serpapi_collector import collect_location_signals
-from backend.synthesizer import synthesize_friction_report
+from backend.synthesizer import compute_friction_score, synthesize_friction_report
 
 load_dotenv()
 
@@ -130,6 +132,34 @@ def _demo_response(locality: str) -> Dict[str, Any]:
     }
 
 
+def _with_score(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Add friction_score, verdict and lake_buffer_breach (recomputed, so old cache files still validate)."""
+    score, verdict = compute_friction_score(result["flags"])
+    breach = any(
+        f.get("geodata") and f["category"] == "zoning_buffer_row" and f["severity"] == "high"
+        for f in result["flags"]
+    )
+    return {**result, "friction_score": score, "verdict": verdict, "lake_buffer_breach": breach}
+
+
+async def _no_hazards() -> List[Dict[str, Any]]:
+    return []
+
+
+def _hazards_only_result(locality: str, raw_signals: Dict[str, Any], hazards: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Fallback when the synthesizer fails: keep map hazards, never a 500."""
+    flags = [dict(f, id=f"flag-{i}") for i, f in enumerate(hazards, start=1)]
+    high = any(f["severity"] == "high" for f in flags)
+    return {
+        "location": locality,
+        "hierarchy": raw_signals.get("hierarchy", {}),
+        "overall_risk": "high" if high else "medium" if flags else "low",
+        "summary": f"Signal analysis failed for {locality}; showing map hazards only.",
+        "flags": flags,
+        "total_flags": len(flags),
+    }
+
+
 @app.post(
     "/api/analyze",
     response_model=AnalyzeResponse,
@@ -147,22 +177,40 @@ async def analyze_location(
     if not refresh:
         cached = cache.get_cached_response(locality, intent)
         if cached is not None:
-            return {**cached, "data_source": "cache"}
+            return _with_score({**cached, "data_source": "cache"})
 
+    logger.info("Executing live SerpApi collector for '%s' (%s)...", locality, intent)
+    # Geodata only runs with real coordinates, in parallel with the SerpApi searches.
+    hazards_task = collect_water_hazards(lat, lng) if lat is not None and lng is not None else _no_hazards()
+    raw_signals, hazards = await asyncio.gather(
+        collect_location_signals(locality, intent, lat, lng), hazards_task, return_exceptions=True
+    )
+    geo_failed = isinstance(hazards, BaseException)
+    if geo_failed:
+        logger.warning("Geodata lookup failed (%s); continuing without it.", type(hazards).__name__)
+        hazards = []
+    if isinstance(raw_signals, BaseException):
+        logger.warning("Live collection failed (%s). Trying demo fallback.", type(raw_signals).__name__)
+        return _with_score(_demo_response(locality))
+
+    synth_failed = False
     try:
-        logger.info("Executing live SerpApi collector for '%s' (%s)...", locality, intent)
-        raw_signals = await collect_location_signals(locality, intent, lat, lng)
+        result = await synthesize_friction_report(locality, intent, {**raw_signals, "extra_flags": hazards})
     except Exception as exc:
-        logger.warning("Live collection failed (%s). Trying demo fallback.", type(exc).__name__)
-        return _demo_response(locality)
+        logger.warning("Synthesizer failed (%s); returning a degraded result.", type(exc).__name__)
+        synth_failed = True
+        result = _hazards_only_result(locality, raw_signals, hazards)
 
-    result = await synthesize_friction_report(locality, intent, raw_signals)
     result.update(
         data_source="live",
-        degraded=raw_signals.get("failed_searches", 0) > 0,
+        degraded=raw_signals.get("failed_searches", 0) > 0 or geo_failed or synth_failed,
         analyzed_at=_utc_now(),
     )
-    # Only cache complete, non-empty results so a partial or empty scan is retried next time.
-    if not result["degraded"] and result["total_flags"] > 0:
+    result = _with_score(result)
+    # Cache only complete, non-empty scans so a partial one is retried next time. A geodata-only
+    # failure still marks the result degraded but doesn't block caching, so an Overpass outage
+    # doesn't spend SerpApi credits on every repeat scan.
+    search_failed = raw_signals.get("failed_searches", 0) > 0
+    if not (search_failed or synth_failed) and result["total_flags"] > 0:
         cache.save_cached_response(locality, intent, result)
     return result

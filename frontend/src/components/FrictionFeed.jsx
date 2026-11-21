@@ -191,6 +191,37 @@ export default function FrictionFeed({
           gap: '14px',
         }}
       >
+        {/* Friction Score (0-100) with verdict */}
+        {typeof analysis?.friction_score === 'number' && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+            <span
+              style={{
+                fontSize: '44px',
+                fontWeight: 800,
+                lineHeight: 1,
+                fontFamily: 'var(--font-mono)',
+                color: { High: '#ef4444', Moderate: '#f59e0b', Low: '#10b981' }[analysis.verdict] || '#f8fafc',
+              }}
+            >
+              {analysis.friction_score}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: { High: '#ef4444', Moderate: '#f59e0b', Low: '#10b981' }[analysis.verdict] || '#cbd5e1',
+                }}
+              >
+                {analysis.verdict} friction
+              </span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>Friction score / 100</span>
+            </div>
+          </div>
+        )}
+
         {/* Risk Badge and Location Title */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
           <div>

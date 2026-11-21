@@ -10,7 +10,7 @@ When choosing a property for a **warehouse**, **retail store**, or **plot invest
 - **Zoning & Regulatory Traps:** NGT lake buffer zone encroachments, road widening demolition notices, land acquisition disputes.
 - **Civic & Operational Headaches:** Heavy truck daytime entry bans, neighbor noise friction, industrial dumping ground smells.
 
-**PlotTwistt** takes a dropped pin or locality search and user intent, queries live search and intelligence feeds via **SerpApi**, and delivers a categorized **Friction Radar** with an indisputable **Receipt Trail** (exact quotes, source publishers, and direct links).
+**PlotTwistt** takes a dropped pin or locality search and user intent, queries live search and intelligence feeds via **SerpApi**, and delivers a categorized **Friction Radar** with a **Receipt Trail** of cited sources (exact quotes, source publishers, and direct links).
 
 ---
 
@@ -102,5 +102,8 @@ uvicorn backend.main:app --reload --port 8000
 
 ## 🛡️ Built-in Demo Reliability
 - **Response caching**: Live results are cached in `backend/cache/<locality>-<hash>_<intent>.json` for `CACHE_TTL_HOURS` (default 24) and served with `data_source: "cache"`. Degraded or empty results are not cached. Use `?refresh=true` to bypass.
+- **Geodata hazards**: with a pin, one OpenStreetMap Overpass query (no key; three public servers tried within 8 s; cached per pin for 7 days) flags lakes within 75 m (NGT buffer) and drains within 50 m as high, and anything within 200 m as medium, with real distances.
+- **Friction score**: every result has a 0–100 `friction_score` and a `verdict` (Low ≤30, Moderate ≤70, High); see SPEC.md for the weights.
+- **New env vars**: none. Overpass needs no API key; `shapely` is added to `backend/requirements.txt`.
 - **Demo fallback**: If live collection fails entirely, the four preset localities return curated sample data marked `data_source: "demo"` (the UI shows a DEMO banner). Any other locality returns HTTP 503 rather than borrowed data.
 

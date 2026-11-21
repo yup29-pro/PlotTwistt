@@ -16,9 +16,6 @@ import InteractiveGlobe from './InteractiveGlobe';
 
 export default function OnboardingFlow({ onComplete }) {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
 
   const slides = [
@@ -54,7 +51,7 @@ export default function OnboardingFlow({ onComplete }) {
       highlights: [
         'Verbatim quotes cited with source publisher & timestamp',
         'Direct clickable receipts from The Hindu, Deccan Herald, Times of India',
-        'Zero API token waste with smart geographic disk caching',
+        'Smart caching: repeat scans of the same site are served from disk',
       ],
       cta: 'Continue to Access Radar',
     },
@@ -70,11 +67,8 @@ export default function OnboardingFlow({ onComplete }) {
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
-    // Seamless simulated authentication allowing instant app access
-    const userProfile = {
-      name: name || (email ? email.split('@')[0] : 'Investigator'),
-      email: email || 'demo@plottwistt.io',
-    };
+    // Demo profile only: no account, no password, stored in this browser.
+    const userProfile = { name: name.trim() || 'Investigator' };
     localStorage.setItem('plottwistt_user', JSON.stringify(userProfile));
     onComplete(userProfile);
   };
@@ -173,7 +167,7 @@ export default function OnboardingFlow({ onComplete }) {
             transition: 'all 0.15s',
           }}
         >
-          {currentSlide === 3 ? 'Direct Access' : 'Skip to Login'}
+          {currentSlide === 3 ? 'Demo profile' : 'Skip intro'}
         </button>
       </nav>
 
@@ -305,7 +299,7 @@ export default function OnboardingFlow({ onComplete }) {
             </div>
           </div>
         ) : (
-          // Slide 4: Login / Authentication Page
+          // Slide 4: Demo profile (no account)
           <div
             style={{
               background: 'rgba(15, 23, 42, 0.85)',
@@ -330,75 +324,26 @@ export default function OnboardingFlow({ onComplete }) {
                   marginBottom: '4px',
                 }}
               >
-                RADAR ACCESS CLEARANCE
+                DEMO PROFILE
               </div>
               <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#ffffff' }}>
-                {authMode === 'login' ? 'Sign In to PlotTwistt' : 'Create Free Account'}
+                Start the radar demo
               </h2>
               <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
-                Access live civic radar scans, save target site alerts, and export receipt dossiers.
+                No account needed. Your name is only kept in this browser to label the console.
               </p>
             </div>
 
             <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {authMode === 'signup' && (
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px', display: 'block' }}>
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Yashwanth R"
-                    style={{
-                      width: '100%',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      color: '#f8fafc',
-                      fontSize: '13.5px',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-              )}
-
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px', display: 'block' }}>
-                  Work or Personal Email
+                  Your name (optional)
                 </label>
                 <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="analyst@domain.com"
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    color: '#f8fafc',
-                    fontSize: '13.5px',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px', display: 'block' }}>
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Site analyst"
                   style={{
                     width: '100%',
                     background: 'rgba(255, 255, 255, 0.05)',
@@ -427,56 +372,10 @@ export default function OnboardingFlow({ onComplete }) {
                   boxShadow: '0 0 20px rgba(37, 99, 235, 0.4)',
                 }}
               >
-                {authMode === 'login' ? 'Enter Radar Console' : 'Complete Setup & Launch'}
+                Continue with demo profile (no account needed)
               </button>
             </form>
 
-            <div style={{ textAlign: 'center', fontSize: '12.5px', color: '#94a3b8' }}>
-              {authMode === 'login' ? (
-                <>
-                  Don't have an account?{' '}
-                  <span
-                    onClick={() => setAuthMode('signup')}
-                    style={{ color: '#38bdf8', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Sign Up Free
-                  </span>
-                </>
-              ) : (
-                <>
-                  Already registered?{' '}
-                  <span
-                    onClick={() => setAuthMode('login')}
-                    style={{ color: '#38bdf8', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Sign In
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* Quick Demo Bypass Button */}
-            <div
-              style={{
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                paddingTop: '12px',
-                textAlign: 'center',
-              }}
-            >
-              <button
-                onClick={() => onComplete({ name: 'Guest Investigator', email: 'guest@plottwistt.io' })}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#64748b',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                }}
-              >
-                Continue as Guest Analyst (Instant Access)
-              </button>
-            </div>
           </div>
         )}
       </div>

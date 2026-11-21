@@ -66,6 +66,9 @@ class AnalyzeResponse(BaseModel):
     summary: str
     flags: List[Flag]
     total_flags: int
+    friction_score: int = Field(..., ge=0, le=100, description="0-100; see SPEC")
+    verdict: Literal["Low", "Moderate", "High"]
+    lake_buffer_breach: bool = Field(False, description="Pin is inside a 75 m NGT lake buffer (OpenStreetMap)")
     data_source: Literal["live", "cache", "demo"]
     degraded: bool
     analyzed_at: str = Field(..., description="ISO 8601 UTC timestamp")

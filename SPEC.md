@@ -66,12 +66,18 @@ Severity is assigned per intent from the sensitivities in section 1 (e.g. floodi
   "summary": "Radar scan for Bellandur found 7 public friction signals...",
   "flags": [ ...Flag... ],
   "total_flags": 7,
+  "friction_score": 64,
+  "verdict": "Moderate",
+  "lake_buffer_breach": false,
   "data_source": "live",
   "degraded": false,
   "analyzed_at": "2026-11-21T11:15:00+00:00"
 }
 ```
 - `overall_risk` is computed from real flags only. With 0 flags it is `low` and the summary says few public signals were found. No filler flags are ever added.
+- `friction_score` (0–100) = min(100, Σ weight × multiplier). Weights: high 25, medium 12, low 4. Multipliers: 1.0 for geodata and "Names locality", 0.6 for "Mentions locality", 0.3 for "Area-level".
+- `verdict`: `Low` (0–30), `Moderate` (31–70), `High` (71–100).
+- `lake_buffer_breach`: `true` when OpenStreetMap puts a lake within 75 m of the pin (the UI draws a red 75 m ring).
 - `data_source`: `live` (fresh SerpApi results), `cache` (served from the file cache), `demo` (curated sample data, shown with a DEMO banner).
 - `degraded`: `true` when some of the live searches failed, or when demo data is served because live collection failed.
 - `analyzed_at`: ISO 8601 UTC timestamp.
@@ -111,7 +117,7 @@ or
 
 **Behaviour**
 1. Unless `refresh=true`, a cached result for (locality, intent) younger than `CACHE_TTL_HOURS` (default 24) is returned with `data_source: "cache"`.
-2. Otherwise SerpApi is queried (5 searches in parallel). Results are returned with `data_source: "live"` (`degraded: true` if some searches failed). Only complete results with at least one flag are cached; degraded or empty results are retried next time.
+2. Otherwise SerpApi is queried (5 searches in parallel). When `lat`/`lng` are given, one Overpass (OpenStreetMap) query runs alongside it for lakes (`natural=water`) and drains (`waterway=drain|canal|stream`) within 250 m (three public servers tried in turn within 8 s; results cached per pin for 7 days): a lake ≤75 m or a drain ≤50 m is a `high` flag, anything ≤200 m is `medium`, with the OSM way as the receipt URL and a real `distance_km`. A geodata or synthesizer failure sets `degraded: true` instead of failing the request. A geodata-only failure does not stop the scan from being cached. Results are returned with `data_source: "live"` (`degraded: true` if some searches failed). Only complete results with at least one flag are cached; degraded or empty results are retried next time.
 3. If collection fails entirely: a known demo locality (Bellandur, Peenya, Indiranagar, Sarjapur) returns demo data with `data_source: "demo"`; any other locality returns **503**.
 
 **Responses**

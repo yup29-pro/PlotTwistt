@@ -61,11 +61,13 @@ export default function MapCanvas({
   setIntent,
   onScan,
   isLoading,
-  overallRisk
+  overallRisk,
+  lakeBufferBreach = false
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const activeMarkerRef = useRef(null);
+  const bufferCircleRef = useRef(null);
   const presetMarkersGroupRef = useRef(null);
 
   // Intent icons and labels
@@ -122,6 +124,22 @@ export default function MapCanvas({
     if (activeMarkerRef.current) {
       map.removeLayer(activeMarkerRef.current);
     }
+    if (bufferCircleRef.current) {
+      map.removeLayer(bufferCircleRef.current);
+      bufferCircleRef.current = null;
+    }
+    // Red 75 m NGT buffer ring when OpenStreetMap puts a lake inside it.
+    if (lakeBufferBreach) {
+      bufferCircleRef.current = L.circle([coordinates.lat, coordinates.lng], {
+        radius: 75,
+        color: '#ef4444',
+        weight: 2,
+        fillColor: '#ef4444',
+        fillOpacity: 0.15,
+      })
+        .bindTooltip('Inside 75 m NGT lake buffer')
+        .addTo(map);
+    }
 
     const pinColor =
       overallRisk === 'high'
@@ -146,7 +164,7 @@ export default function MapCanvas({
 
     activeMarkerRef.current = marker;
     map.setView([coordinates.lat, coordinates.lng], map.getZoom(), { animate: true });
-  }, [coordinates, overallRisk]);
+  }, [coordinates, overallRisk, lakeBufferBreach]);
 
   // Render Preset pins on map (DISABLED: clean map display per option 2)
   useEffect(() => {

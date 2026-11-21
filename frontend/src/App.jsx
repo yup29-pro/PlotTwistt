@@ -412,6 +412,7 @@ export default function App() {
             onScan={handleScan}
             isLoading={isLoading}
             overallRisk={analysis?.overall_risk}
+            lakeBufferBreach={Boolean(analysis?.lake_buffer_breach)}
           />
         </section>
 

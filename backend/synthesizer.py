@@ -24,6 +24,24 @@ TIER_LABELS = {
 GENERIC_PLACES = {"bengaluru", "bangalore", "karnataka", "india"}
 TIER_RANK = {"hyperlocal": 0, "corridor": 1, "district": 2}
 SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
+# Friction score: severity weight x how specifically the source names the site.
+SCORE_WEIGHTS = {"high": 25, "medium": 12, "low": 4}
+TIER_MULTIPLIER = {"hyperlocal": 1.0, "corridor": 0.6, "district": 0.3}
+
+
+def verdict_for(score: int) -> str:
+    """0-30 Low, 31-70 Moderate, 71-100 High."""
+    return "Low" if score <= 30 else "Moderate" if score <= 70 else "High"
+
+
+def compute_friction_score(flags: List[Dict[str, Any]]) -> Tuple[int, str]:
+    """Return (score 0-100, verdict). Geodata and title-named flags count fully."""
+    total = sum(
+        SCORE_WEIGHTS.get(f["severity"], 0) * TIER_MULTIPLIER.get(f["proximity_tier"], 0.3)
+        for f in flags
+    )
+    score = min(100, int(round(total)))
+    return score, verdict_for(score)
 
 
 def _mentions(place: Optional[str], text: str) -> bool:
@@ -234,7 +252,8 @@ async def synthesize_friction_report(
             "proximity_tier": dist_meta["proximity_tier"],
         })
 
-    flags.sort(key=lambda f: (TIER_RANK[f["proximity_tier"]], SEVERITY_RANK[f["severity"]]))
+    flags.extend(dict(f) for f in signals_data.get("extra_flags", []))  # e.g. geodata hazards
+    flags.sort(key=lambda f: (TIER_RANK[f["proximity_tier"]], SEVERITY_RANK[f["severity"]], not f.get("geodata")))
     for i, flag in enumerate(flags, start=1):
         flag["id"] = f"flag-{i}"
 
