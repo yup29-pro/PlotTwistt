@@ -7,7 +7,8 @@ place name the source mentions.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.serpapi_collector import haversine_distance
 
@@ -56,6 +57,81 @@ def _truncate(title: str) -> str:
     return title[:HEADLINE_MAX] + "..." if len(title) > HEADLINE_MAX else title
 
 
+def _words(*patterns: str) -> "re.Pattern[str]":
+    return re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE)
+
+
+# (topic, category, whole-word pattern). First match wins, so specific topics come first.
+TOPIC_RULES: List[Tuple[str, str, "re.Pattern[str]"]] = [
+    ("heavy_vehicle", "access_infrastructure", _words(
+        r"truck bans?", r"lorry bans?", r"heavy[- ]vehicles?", r"goods vehicles?", r"multi-axle", r"no[- ]entry")),
+    ("power_line", "access_infrastructure", _words(
+        r"power lines?", r"high[- ]tension", r"HT lines?", r"overhead lines?", r"transmission lines?", r"line clearance")),
+    ("narrow_road", "access_infrastructure", _words(
+        r"narrow (?:roads?|lanes?|approach|streets?)", r"low bridges?", r"height restrictions?")),
+    ("parking", "civic_neighbor_friction", _words(r"parking", r"parked", r"towing", r"towed")),
+    ("road_widening", "zoning_buffer_row", _words(r"road widening", r"widening", r"demolitions?", r"demolish(?:ed|es|ing)?")),
+    ("buffer", "zoning_buffer_row", _words(r"buffer(?: zones?)?", r"NGT", r"wetlands?")),
+    ("land_dispute", "zoning_buffer_row", _words(
+        r"acquisitions?", r"acquire[ds]?", r"disputes?", r"disputed", r"illegal layouts?", r"encroach\w*",
+        r"BDA", r"deeds?", r"gramathana", r"revenue land", r"khata", r"land conversion")),
+    ("flooding", "flooding_drainage", _words(
+        r"waterlog\w*", r"flood\w*", r"inundat\w*", r"rains?", r"rainfall", r"drains?", r"drainage",
+        r"rajakaluve", r"storm ?water", r"overflow\w*", r"submerg\w*")),
+    ("crime", "civic_neighbor_friction", _words(
+        r"murder\w*", r"robber(?:y|ies)", r"crimes?", r"police", r"arrest\w*", r"attack\w*", r"accidents?",
+        r"theft", r"snatching", r"mob")),
+    ("traffic", "civic_neighbor_friction", _words(r"traffic", r"jams?", r"potholes?", r"bottlenecks?", r"congestion")),
+    ("protest_noise", "civic_neighbor_friction", _words(
+        r"protest\w*", r"noise", r"residents?", r"RWA", r"garbage", r"dump\w*")),
+    ("utility", "civic_neighbor_friction", _words(
+        r"BESCOM", r"power cuts?", r"power outages?", r"outages?", r"shutdowns?", r"tankers?", r"water supply")),
+]
+
+# Severity per intent and topic, following SPEC section 1. Unmatched text is "low".
+SEVERITY_TABLE: Dict[str, Dict[str, str]] = {
+    "warehouse": {
+        "heavy_vehicle": "high", "narrow_road": "high", "power_line": "medium", "flooding": "high",
+        "buffer": "high", "land_dispute": "medium", "road_widening": "medium", "parking": "low",
+        "crime": "medium", "traffic": "medium", "protest_noise": "medium", "utility": "medium",
+    },
+    "retail": {
+        "heavy_vehicle": "low", "narrow_road": "medium", "power_line": "low", "flooding": "medium",
+        "buffer": "medium", "land_dispute": "medium", "road_widening": "high", "parking": "high",
+        "crime": "medium", "traffic": "medium", "protest_noise": "medium", "utility": "medium",
+    },
+    "plot": {
+        "heavy_vehicle": "low", "narrow_road": "medium", "power_line": "high", "flooding": "medium",
+        "buffer": "high", "land_dispute": "high", "road_widening": "medium", "parking": "low",
+        "crime": "low", "traffic": "low", "protest_noise": "low", "utility": "medium",
+    },
+}
+
+HEADLINE_PREFIX = {
+    "zoning_buffer_row": "Land & Zoning Alert",
+    "flooding_drainage": "Civic Infrastructure & Drainage",
+    "access_infrastructure": "Access Constraint",
+    "civic_neighbor_friction": "Neighborhood Friction",
+}
+
+
+def classify_signal(text: str, intent: str) -> Tuple[str, str]:
+    """Return (category, severity) using whole-word topic rules and the intent severity table."""
+    for topic, category, pattern in TOPIC_RULES:
+        if pattern.search(text):
+            return category, SEVERITY_TABLE.get(intent, {}).get(topic, "medium")
+    return "civic_neighbor_friction", "low"
+
+
+def _explanation(category: str, clean_loc: str, corridor: str) -> str:
+    return {
+        "zoning_buffer_row": f"Public record near {clean_loc} points to zoning, buffer, demolition or land-title scrutiny.",
+        "flooding_drainage": f"Monsoon drainage, waterlogging or stormwater conditions reported around {clean_loc}.",
+        "access_infrastructure": f"Vehicle access, approach-road or overhead-line constraints reported around {clean_loc}.",
+        "civic_neighbor_friction": f"Local civic, traffic, safety or neighbor friction reported along {corridor}.",
+    }[category]
+
+
 async def synthesize_friction_report(
     locality: str,
     intent: str,
@@ -79,34 +155,9 @@ async def synthesize_friction_report(
             continue
 
         seen_urls.add(url)
-        combined_text = f"{title} {snippet}".lower()
-
-        # Classify category & severity
-        if any(k in combined_text for k in ["acquisition", "demolition", "illegal", "encroach", "dispute", "bda", "buffer", "deed"]):
-            category = "zoning_buffer_row"
-            severity = "high" if any(k in combined_text for k in ["demolition", "acquisition", "illegal"]) else "medium"
-            headline = f"Land & Zoning Alert: {_truncate(title)}"
-            explanation = f"Statutory property and master plan record near {clean_loc} indicates active zoning or land regularization scrutiny."
-        elif any(k in combined_text for k in ["murder", "robbery", "crime", "police", "arrest", "attack", "accident", "protest", "mob"]):
-            category = "civic_neighbor_friction"
-            severity = "high" if any(k in combined_text for k in ["murder", "dacoit", "shoot"]) else "medium"
-            headline = f"Law & Order Incident: {_truncate(title)}"
-            explanation = "Police jurisdiction reports document local law enforcement activity, road accidents, or civic friction in the surrounding vicinity."
-        elif any(k in combined_text for k in ["waterlog", "flood", "rain", "drain", "bescom", "power", "shutdown", "tanker"]):
-            category = "flooding_drainage"
-            severity = "high" if "severe" in combined_text or intent == "warehouse" else "medium"
-            headline = f"Civic Infrastructure & Drainage: {_truncate(title)}"
-            explanation = f"Monsoon drainage conditions, stormwater channels, or civic utility adjustments active in {clean_loc}."
-        elif any(k in combined_text for k in ["traffic", "jam", "pothole", "bmtc", "bottleneck", "expressway"]):
-            category = "civic_neighbor_friction"
-            severity = "medium"
-            headline = f"Transit Bottleneck: {_truncate(title)}"
-            explanation = f"Road and arterial transport conditions report commuter congestion and heavy movement friction along {corridor}."
-        else:
-            category = "civic_neighbor_friction"
-            severity = "low"
-            headline = f"Neighborhood Notice: {_truncate(title)}"
-            explanation = f"Local observation regarding commerce and accessibility in {clean_loc}."
+        category, severity = classify_signal(f"{title} {snippet}", intent)
+        headline = f"{HEADLINE_PREFIX[category]}: {_truncate(title)}"
+        explanation = _explanation(category, clean_loc, corridor)
 
         # Compute estimated distance from target
         dist_meta = estimate_event_distance(
