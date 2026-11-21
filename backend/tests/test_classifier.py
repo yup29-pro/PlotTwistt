@@ -77,3 +77,27 @@ def test_police_administration_news_is_low():
 
 def test_police_crime_news_still_flags():
     assert classify_signal("Police arrest gang after robbery near lake", "warehouse")[1] == "medium"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "This building is illegal. But it'll never be razed",
+        "BBMP to raze encroachments on lake bed",
+        "Civic body razes shops near junction",
+        "Illegal construction on stormwater drain",
+        "Authorities flag illegal structures near lake",
+        "Illegal building sealed by BBMP",
+    ],
+)
+def test_raze_and_illegal_construction_are_zoning(text):
+    assert classify_signal(text, "plot")[0] == "zoning_buffer_row"
+
+
+@pytest.mark.parametrize("text", ["Traffic police crack down on illegal parking", "Illegal parking chokes main road"])
+def test_illegal_parking_stays_civic(text):
+    assert classify_signal(text, "retail") == ("civic_neighbor_friction", "high")
+
+
+def test_bare_illegal_is_not_zoning():
+    assert classify_signal("Illegal liquor sale busted", "plot")[0] != "zoning_buffer_row"

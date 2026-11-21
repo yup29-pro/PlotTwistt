@@ -73,10 +73,13 @@ TOPIC_RULES: List[Tuple[str, str, "re.Pattern[str]"]] = [
     ("narrow_road", "access_infrastructure", _words(
         r"narrow (?:roads?|lanes?|approach|streets?)", r"low bridges?", r"height restrictions?")),
     ("parking", "civic_neighbor_friction", _words(r"parking", r"parked", r"towing", r"towed")),
-    ("road_widening", "zoning_buffer_row", _words(r"road widening", r"widening", r"demolitions?", r"demolish(?:ed|es|ing)?")),
+    ("road_widening", "zoning_buffer_row", _words(
+        r"road widening", r"widening", r"demolitions?", r"demolish(?:ed|es|ing)?", r"raze[ds]?", r"razing")),
     ("buffer", "zoning_buffer_row", _words(r"buffer(?: zones?)?", r"NGT", r"wetlands?")),
     ("land_dispute", "zoning_buffer_row", _words(
-        r"acquisitions?", r"acquire[ds]?", r"disputes?", r"disputed", r"illegal layouts?", r"encroach\w*",
+        r"acquisitions?", r"acquire[ds]?", r"disputes?", r"disputed", r"encroach\w*",
+        # Phrase rules only: bare "illegal" (e.g. "illegal parking") is not a zoning signal.
+        r"illegal (?:buildings?|constructions?|structures?|layouts?)",
         r"BDA", r"deeds?", r"gramathana", r"revenue land", r"khata", r"land conversion")),
     ("flooding", "flooding_drainage", _words(
         r"waterlog\w*", r"flood\w*", r"inundat\w*", r"rains?", r"rainfall", r"drains?", r"drainage",
