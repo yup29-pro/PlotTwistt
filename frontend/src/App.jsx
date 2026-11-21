@@ -63,7 +63,7 @@ export default function App() {
     if (useSampleData) {
       setTimeout(() => {
         const sample = getSampleAnalysis(selectedLocation, intent);
-        setAnalysis(sample);
+        setAnalysis({ ...sample, data_source: 'demo' });
         setIsLoading(false);
       }, 450);
       return;
@@ -92,11 +92,11 @@ export default function App() {
       console.warn('Backend request failed; falling back to offline radar sample data:', err);
       setBackendConnected(false);
       setErrorNotice(
-        'Backend server (localhost:8000) is unreachable. Automatically loaded verified offline sample data for this location.'
+        'Backend server is unreachable. Showing offline sample data, not live results for this location.'
       );
       // Seamlessly fallback to sample data
       const sample = getSampleAnalysis(selectedLocation, intent);
-      setAnalysis(sample);
+      setAnalysis({ ...sample, data_source: 'demo' });
     } finally {
       setIsLoading(false);
     }
@@ -253,6 +253,28 @@ export default function App() {
           </label>
         </div>
       </header>
+
+      {analysis?.data_source === 'demo' && (
+        <div
+          role="status"
+          style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            borderBottom: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#fecaca',
+            padding: '8px 20px',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            zIndex: 1050,
+          }}
+        >
+          <AlertCircle size={15} color="#ef4444" />
+          <span>
+            <strong>DEMO DATA</strong> &mdash; these flags are curated sample data, not live search results for this site.
+          </span>
+        </div>
+      )}
 
       {/* Optional Toast / Warning Alert */}
       {errorNotice && (

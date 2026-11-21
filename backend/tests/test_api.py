@@ -53,6 +53,22 @@ def test_invalid_nested_lng_is_422(client, collector):
     assert client.post("/api/analyze", json=payload).status_code == 422
 
 
+def test_total_failure_known_locality_serves_demo(client, collector):
+    collector["result"] = RuntimeError("all searches failed")
+    res = client.post("/api/analyze", json=BELLANDUR)
+    assert res.status_code == 200
+    body = AnalyzeResponse.model_validate(res.json())
+    assert body.data_source == "demo"
+    assert "Bellandur" in body.location
+
+
+def test_total_failure_unknown_locality_is_503(client, collector):
+    collector["result"] = RuntimeError("all searches failed")
+    res = client.post("/api/analyze", json={"location": "Whitefield", "intent": "retail"})
+    assert res.status_code == 503
+    assert "Whitefield" in res.json()["detail"]
+
+
 def test_overlong_location_is_422(client, collector):
     res = client.post("/api/analyze", json={"location": "x" * 201, "intent": "plot"})
     assert res.status_code == 422

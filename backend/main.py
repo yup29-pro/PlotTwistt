@@ -6,10 +6,10 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Query, status
+from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.cache import PRESETS, get_frontend_compatible_fallback
+from backend.cache import PRESETS, get_demo_analysis
 from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
 from backend.serpapi_collector import collect_location_signals
 from backend.synthesizer import synthesize_friction_report
@@ -67,8 +67,14 @@ def _resolve_query(request: AnalyzeRequest) -> tuple[str, Optional[float], Optio
     return locality, lat, lng
 
 
-def _demo_response(locality: str, intent: str) -> Dict[str, Any]:
-    demo = get_frontend_compatible_fallback(locality, intent)
+def _demo_response(locality: str) -> Dict[str, Any]:
+    """Demo data for a known demo locality; 503 for anything else."""
+    demo = get_demo_analysis(locality)
+    if demo is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Live data is unavailable right now and there is no demo data for '{locality}'. Please try again later.",
+        )
     flags = []
     for flag in demo["flags"]:
         flag = dict(flag)
@@ -101,7 +107,7 @@ async def analyze_location(
         raw_signals = await collect_location_signals(locality, intent, lat, lng)
     except Exception as exc:
         logger.warning("Live collection failed (%s). Trying demo fallback.", type(exc).__name__)
-        return _demo_response(locality, intent)
+        return _demo_response(locality)
 
     result = await synthesize_friction_report(locality, intent, raw_signals)
     result.update(

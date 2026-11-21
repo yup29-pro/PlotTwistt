@@ -1,44 +1,59 @@
 """Live multi-angle synthesizer for PlotTwistt.
 
-Transforms harvested real-world signals into rich, informative friction cards.
-Calculates estimated proximity radius (e.g. '0.8 km from target') and ranks closest events first.
+Transforms harvested real-world signals into friction cards. Distances are only
+reported when a signal carries real coordinates; otherwise the card says which
+place name the source mentions.
 """
 
 from __future__ import annotations
-import hashlib
-import random
-from typing import Any, Dict, List
+
+from typing import Any, Dict, List, Optional
+
+from backend.serpapi_collector import haversine_distance
+
+HEADLINE_MAX = 75
+TIER_LABELS = {
+    "hyperlocal": "Mentions locality",
+    "corridor": "Mentions corridor",
+    "district": "Area-level",
+}
+TIER_RANK = {"hyperlocal": 0, "corridor": 1, "district": 2}
+SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
 
 
-def estimate_event_distance(target_locality: str, text: str) -> Dict[str, Any]:
-    """Estimate approximate radial distance of the event relative to target."""
-    clean_target = target_locality.lower().strip()
+def _mentions(place: Optional[str], text_lower: str) -> bool:
+    if not place:
+        return False
+    return any(word in text_lower for word in place.lower().split() if len(word) > 3)
+
+
+def estimate_event_distance(
+    target_locality: str,
+    text: str,
+    corridor: Optional[str] = None,
+    target_lat: Optional[float] = None,
+    target_lng: Optional[float] = None,
+    signal_lat: Optional[float] = None,
+    signal_lng: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Real distance when both points have coordinates; otherwise a mention-based tier."""
+    if None not in (target_lat, target_lng, signal_lat, signal_lng):
+        dist_km = haversine_distance(target_lat, target_lng, signal_lat, signal_lng)
+        tier = "hyperlocal" if dist_km < 1.5 else "corridor" if dist_km < 4.0 else "district"
+        return {"distance_km": dist_km, "distance_label": f"{dist_km} km from target", "proximity_tier": tier}
+
     text_lower = text.lower()
-
-    # Deterministic seed from title to ensure consistent distance badge across re-renders
-    seed = int(hashlib.md5(text.encode("utf-8")).hexdigest()[:6], 16)
-    rng = random.Random(seed)
-
-    # If the exact neighborhood name is mentioned in the headline/snippet, it is hyper-local (< 1.2 km)
-    if any(word in text_lower for word in clean_target.split() if len(word) > 3):
-        dist_km = round(rng.uniform(0.2, 1.2), 1)
-        proximity_label = f"~{dist_km} km away (Immediate Vicinity)"
+    if _mentions(target_locality, text_lower):
         tier = "hyperlocal"
-    # If corridor/ward level mentions
-    elif any(k in text_lower for k in ["road", "station", "circle", "junction", "nagar", "layout", "cross"]):
-        dist_km = round(rng.uniform(1.4, 3.8), 1)
-        proximity_label = f"~{dist_km} km away (Corridor Sector)"
+    elif corridor and corridor.lower() != "bengaluru" and _mentions(corridor, text_lower):
         tier = "corridor"
     else:
-        dist_km = round(rng.uniform(4.0, 7.5), 1)
-        proximity_label = f"~{dist_km} km away (Sub-district)"
         tier = "district"
+    return {"distance_km": None, "distance_label": TIER_LABELS[tier], "proximity_tier": tier}
 
-    return {
-        "distance_km": dist_km,
-        "distance_label": proximity_label,
-        "proximity_tier": tier,
-    }
+
+def _truncate(title: str) -> str:
+    return title[:HEADLINE_MAX] + "..." if len(title) > HEADLINE_MAX else title
 
 
 async def synthesize_friction_report(
@@ -70,31 +85,39 @@ async def synthesize_friction_report(
         if any(k in combined_text for k in ["acquisition", "demolition", "illegal", "encroach", "dispute", "bda", "buffer", "deed"]):
             category = "zoning_buffer_row"
             severity = "high" if any(k in combined_text for k in ["demolition", "acquisition", "illegal"]) else "medium"
-            headline = f"Land & Zoning Alert: {title[:75]}..."
+            headline = f"Land & Zoning Alert: {_truncate(title)}"
             explanation = f"Statutory property and master plan record near {clean_loc} indicates active zoning or land regularization scrutiny."
         elif any(k in combined_text for k in ["murder", "robbery", "crime", "police", "arrest", "attack", "accident", "protest", "mob"]):
             category = "civic_neighbor_friction"
             severity = "high" if any(k in combined_text for k in ["murder", "dacoit", "shoot"]) else "medium"
-            headline = f"Law & Order Incident: {title[:75]}..."
-            explanation = f"Police jurisdiction reports document local law enforcement activity, road accidents, or civic friction in the surrounding vicinity."
+            headline = f"Law & Order Incident: {_truncate(title)}"
+            explanation = "Police jurisdiction reports document local law enforcement activity, road accidents, or civic friction in the surrounding vicinity."
         elif any(k in combined_text for k in ["waterlog", "flood", "rain", "drain", "bescom", "power", "shutdown", "tanker"]):
             category = "flooding_drainage"
             severity = "high" if "severe" in combined_text or intent == "warehouse" else "medium"
-            headline = f"Civic Infrastructure & Drainage: {title[:75]}..."
+            headline = f"Civic Infrastructure & Drainage: {_truncate(title)}"
             explanation = f"Monsoon drainage conditions, stormwater channels, or civic utility adjustments active in {clean_loc}."
         elif any(k in combined_text for k in ["traffic", "jam", "pothole", "bmtc", "bottleneck", "expressway"]):
             category = "civic_neighbor_friction"
             severity = "medium"
-            headline = f"Transit Bottleneck: {title[:75]}..."
+            headline = f"Transit Bottleneck: {_truncate(title)}"
             explanation = f"Road and arterial transport conditions report commuter congestion and heavy movement friction along {corridor}."
         else:
             category = "civic_neighbor_friction"
             severity = "low"
-            headline = f"Neighborhood Notice: {title[:75]}..."
+            headline = f"Neighborhood Notice: {_truncate(title)}"
             explanation = f"Local observation regarding commerce and accessibility in {clean_loc}."
 
         # Compute estimated distance from target
-        dist_meta = estimate_event_distance(clean_loc, f"{title} {snippet}")
+        dist_meta = estimate_event_distance(
+            clean_loc,
+            f"{title} {snippet}",
+            corridor=corridor,
+            target_lat=signals_data.get("target_lat"),
+            target_lng=signals_data.get("target_lng"),
+            signal_lat=item.get("lat"),
+            signal_lng=item.get("lng"),
+        )
 
         flags.append({
             "id": f"flag-{len(flags) + 1}",
@@ -110,47 +133,23 @@ async def synthesize_friction_report(
             "proximity_tier": dist_meta["proximity_tier"],
         })
 
-    # Sort flags: closest events (< 1.5 km) first!
-    flags.sort(key=lambda x: x.get("distance_km", 99.0))
+    flags.sort(key=lambda f: (TIER_RANK[f["proximity_tier"]], SEVERITY_RANK[f["severity"]]))
+    for i, flag in enumerate(flags, start=1):
+        flag["id"] = f"flag-{i}"
 
-    # Fallback to realistic flags if search was sparse
-    if len(flags) < 3:
-        flags.extend([
-            {
-                "id": f"flag-{len(flags) + 1}",
-                "category": "civic_neighbor_friction",
-                "severity": "low",
-                "headline": f"Road Clearance & Turning Radius in {clean_loc}",
-                "explanation": f"Internal approach lanes in {clean_loc} require on-ground turning radius checks for commercial vehicles.",
-                "quote": f"Residential layout cross roads in {clean_loc} experience parked commuter vehicle congestion.",
-                "source_title": "BBMP Ward Infrastructure Review",
-                "url": "https://bbmp.gov.in",
-                "distance_km": 0.4,
-                "distance_label": "~0.4 km away (Immediate Vicinity)",
-                "proximity_tier": "hyperlocal",
-            },
-            {
-                "id": f"flag-{len(flags) + 1}",
-                "category": "flooding_drainage",
-                "severity": "low",
-                "headline": f"Stormwater Runoff & Gutter Clearance in {clean_loc}",
-                "explanation": f"Check roadside feeder desilting status before high-intensity monsoon showers.",
-                "quote": "Zonal desilting works scheduled across peripheral wards.",
-                "source_title": "BBMP Monsoon Preparedness Circular",
-                "url": "https://timesofindia.indiatimes.com/city/bengaluru",
-                "distance_km": 0.8,
-                "distance_label": "~0.8 km away (Immediate Vicinity)",
-                "proximity_tier": "hyperlocal",
-            },
-        ])
-
-    high_count = sum(1 for f in flags if f.get("severity") == "high")
-    overall_risk = "high" if high_count >= 2 else "medium" if len(flags) >= 3 else "low"
-
-    summary = (
-        f"Deep radar scan for {clean_loc} uncovered {len(flags)} civic, crime, road, and title friction points, "
-        f"organized by distance from your search target."
-    )
+    high_count = sum(1 for f in flags if f["severity"] == "high")
+    if not flags:
+        overall_risk = "low"
+        summary = (
+            f"Few public signals were found for {clean_loc}. That is not proof of a clean site; "
+            f"verify on the ground before committing."
+        )
+    else:
+        overall_risk = "high" if high_count >= 2 else "medium" if high_count or len(flags) >= 3 else "low"
+        summary = (
+            f"Radar scan for {clean_loc} found {len(flags)} public friction signal(s), "
+            f"ordered by how specifically each source mentions the site."
+        )
 
     return {
         "location": locality,

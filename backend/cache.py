@@ -167,14 +167,13 @@ DEMO_PRESET_ANALYSES: Dict[str, Dict[str, Any]] = {
 }
 
 
-def get_frontend_compatible_fallback(locality: str, intent: str) -> Dict[str, Any]:
-    """Return structured fallback matching the exact format expected by the frontend."""
+def get_demo_analysis(locality: str) -> Optional[Dict[str, Any]]:
+    """Return curated demo data only when the locality names a known demo area."""
     loc_lower = locality.lower()
     for key, data in DEMO_PRESET_ANALYSES.items():
         if key in loc_lower:
             return data
-    # Default to bellandur profile if unrecognized
-    return DEMO_PRESET_ANALYSES["bellandur"]
+    return None
 
 
 def make_cache_slug(locality: str, intent: str) -> str:
