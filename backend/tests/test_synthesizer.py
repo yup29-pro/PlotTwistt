@@ -16,8 +16,12 @@ def sig(title, url="https://example.com/x", snippet="", **extra):
 
 
 def test_distance_is_none_without_coordinates():
-    flags = run([sig("Bellandur residents protest garbage dumping")])["flags"]
+    data = make_signals([sig("Bellandur residents protest garbage dumping")])
+    data.pop("target_lat")
+    data.pop("target_lng")
+    flags = asyncio.run(synthesize_friction_report("Bellandur", "warehouse", data))["flags"]
     assert flags[0]["distance_km"] is None
+    assert flags[0]["distance_method"] == "none"
     assert flags[0]["proximity_tier"] == "hyperlocal"
     assert flags[0]["distance_label"] == "Names locality"
 

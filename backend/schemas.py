@@ -57,6 +57,11 @@ class Flag(BaseModel):
     distance_km: Optional[float] = None
     distance_label: str
     proximity_tier: str
+    distance_basis: Optional[str] = Field(None, description="Place the distance is measured to, e.g. 'HSR Layout'")
+    distance_method: Literal["mentioned_place", "osm_feature", "none"] = Field(
+        "none", description="mentioned_place: estimated from a place the story names; osm_feature: measured from OpenStreetMap"
+    )
+    distance_within_locality: bool = Field(False, description="The named place is the pin's own locality")
 
 
 class AnalyzeResponse(BaseModel):

@@ -15,6 +15,7 @@ import {
   MapPin,
   Info
 } from 'lucide-react';
+import { describeDistance } from '../utils/distance';
 
 const CATEGORY_META = {
   flooding_drainage: {
@@ -453,13 +454,14 @@ export default function FrictionFeed({
           const domain = sourceDomain(flag.url);
 
           const isSelected = selectedFlagId === flag.id;
+          const dist = describeDistance(flag);
 
           return (
             <div
               key={flag.id}
               role="button"
               tabIndex={0}
-              aria-label={`${flag.severity} severity: ${flag.headline}. View source.`}
+              aria-label={`${flag.severity} severity: ${flag.headline}. ${dist.text} (${dist.basis}). View source.`}
               onClick={() => onSelectFlag(flag)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -494,7 +496,7 @@ export default function FrictionFeed({
                   gap: '6px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: '1 1 0', minWidth: 0 }}>
                   <div
                     style={{
                       display: 'flex',
@@ -541,11 +543,31 @@ export default function FrictionFeed({
                       {flag.distance_label}
                     </span>
                   )}
+
+                  {/* Approximate distance from the pin; hover explains how it was derived */}
+                  <span
+                    title={dist.basis}
+                    style={{
+                      fontSize: '10.5px',
+                      color: dist.known ? '#FFFFFF' : 'var(--muted-on-dark)',
+                      background: dist.known ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                      border: `1px ${dist.known ? 'solid' : 'dashed'} rgba(255, 255, 255, ${dist.known ? 0.2 : 0.25})`,
+                      padding: '2px 7px',
+                      borderRadius: '999px',
+                      fontWeight: dist.known ? 500 : 400,
+                      whiteSpace: 'nowrap',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {dist.text}
+                  </span>
                 </div>
 
                 <span
                   style={{
                     fontSize: 'var(--text-xs)',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
                     fontWeight: 600,
                     color: sev.color,
                     background: sev.bg,

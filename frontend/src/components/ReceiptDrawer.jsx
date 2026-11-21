@@ -13,6 +13,7 @@ import {
   Hash,
   Share2
 } from 'lucide-react';
+import { describeDistance } from '../utils/distance';
 
 const isHttpUrl = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
 
@@ -57,6 +58,7 @@ export default function ReceiptDrawer({ flag, onClose }) {
       : 'var(--sev-low-bg)';
 
   const domain = sourceDomain(flag.url);
+  const dist = describeDistance(flag);
   const hasLink = isHttpUrl(flag.url);
 
   return (
@@ -230,6 +232,26 @@ export default function ReceiptDrawer({ flag, onClose }) {
                 {flag.distance_label}
               </span>
             ) : null}
+            <span
+              style={{
+                color: dist.known ? 'var(--text-main)' : 'var(--text-muted)',
+                background: dist.known ? 'var(--chip)' : 'transparent',
+                border: `1px ${dist.known ? 'solid' : 'dashed'} rgba(30, 31, 27, ${dist.known ? 0.08 : 0.24})`,
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: 'var(--text-xs)',
+                fontWeight: dist.known ? 500 : 400,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {dist.text}
+            </span>
+            <span style={{ flexBasis: '100%', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+              {dist.basis}
+              {dist.known && flag.distance_method === 'mentioned_place'
+                ? '. Straight-line estimate to that place, not the exact spot of the event.'
+                : '.'}
+            </span>
           </div>
 
           {/* Risk Title / Headline */}

@@ -268,6 +268,12 @@ export default function MapCanvas({
     setActiveIndex(-1);
   };
 
+  // Esc or a scan also cancels a lookup still in flight, so a late reply can't reopen the list.
+  const dismissSuggestions = () => {
+    closeSuggestions();
+    setTypedQuery('');
+  };
+
   const handleSearchInput = (value) => {
     setSelectedLocation(value);
     // Typed without picking: clear the pin so the backend geocodes the text.
@@ -302,9 +308,9 @@ export default function MapCanvas({
       } else {
         closeSuggestions();
       }
-    } else if (e.key === 'Escape' && suggestOpen) {
-      e.preventDefault();
-      closeSuggestions();
+    } else if (e.key === 'Escape') {
+      if (suggestOpen) e.preventDefault();
+      dismissSuggestions();
     }
   };
 
@@ -454,7 +460,10 @@ export default function MapCanvas({
 
             {/* Scan Trigger Button */}
             <button
-              onClick={() => onScan()}
+              onClick={() => {
+                dismissSuggestions();
+                onScan();
+              }}
               disabled={isLoading}
               aria-busy={isLoading}
               style={{

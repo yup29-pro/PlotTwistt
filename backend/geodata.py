@@ -93,6 +93,9 @@ def hazard_flag(feature: Dict[str, Any]) -> Dict[str, Any]:
         "distance_km": round(feature["distance_m"] / 1000, 3),
         "distance_label": f"{metres} m from pin",
         "proximity_tier": "hyperlocal",
+        "distance_basis": name,
+        "distance_method": "osm_feature",  # measured from the mapped feature, not estimated
+        "distance_within_locality": False,
         "geodata": True,
     }
 

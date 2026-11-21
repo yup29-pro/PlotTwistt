@@ -12,6 +12,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
+from backend.place_distance import GENERIC_PLACES as _GENERIC_PLACE_NAMES, distance_fields, locate_mentions
 from backend.serpapi_collector import haversine_distance
 
 HEADLINE_MAX = 75
@@ -213,6 +214,7 @@ async def synthesize_friction_report(
     raw_signals = signals_data.get("signals", [])
 
     flags: List[Dict[str, Any]] = []
+    mention_texts: List[str] = []  # per news flag without its own coordinates, for place-distance lookup
     seen_urls = set()
 
     for item in raw_signals:
@@ -251,10 +253,31 @@ async def synthesize_friction_report(
             "distance_km": dist_meta["distance_km"],
             "distance_label": dist_meta["distance_label"],
             "proximity_tier": dist_meta["proximity_tier"],
+            "distance_basis": "source coordinates" if dist_meta["distance_km"] is not None else None,
+            "distance_method": "mentioned_place" if dist_meta["distance_km"] is not None else "none",
+            "distance_within_locality": False,
         })
+        mention_texts.append(f"{title} {snippet}" if dist_meta["distance_km"] is None else "")
+
+    # Approximate distance from the pin to the most specific place each story names.
+    pin_lat = signals_data.get("target_lat")
+    pin_lng = signals_data.get("target_lng")
+    if pin_lat is not None and pin_lng is not None:
+        pin_names = [clean_loc, hierarchy.get("hyperlocal"), hierarchy.get("locality")]
+        pin_names = [n for n in pin_names if n and n.lower() not in _GENERIC_PLACE_NAMES]
+        places = await locate_mentions(mention_texts)
+        for flag, text, place in zip(flags, mention_texts, places):
+            if text:
+                flag.update(distance_fields(pin_lat, pin_lng, place, pin_names))
 
     flags.extend(dict(f) for f in signals_data.get("extra_flags", []))  # e.g. geodata hazards
-    flags.sort(key=lambda f: (TIER_RANK[f["proximity_tier"]], SEVERITY_RANK[f["severity"]], not f.get("geodata")))
+    # Within a tier, closer first (unknown distance last), then severity.
+    flags.sort(key=lambda f: (
+        TIER_RANK[f["proximity_tier"]],
+        f["distance_km"] if f.get("distance_km") is not None else float("inf"),
+        SEVERITY_RANK[f["severity"]],
+        not f.get("geodata"),
+    ))
     for i, flag in enumerate(flags, start=1):
         flag["id"] = f"flag-{i}"
 
