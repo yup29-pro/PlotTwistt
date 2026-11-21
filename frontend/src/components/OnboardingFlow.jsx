@@ -13,11 +13,11 @@ import {
   Users
 } from 'lucide-react';
 import InteractiveGlobe from './InteractiveGlobe';
+import AuthCard from './AuthCard';
 import useAutoHideBar from '../hooks/useAutoHideBar';
 
 export default function OnboardingFlow({ onComplete }) {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [name, setName] = useState('');
   const navBar = useAutoHideBar(7);
 
   const slides = [
@@ -67,13 +67,6 @@ export default function OnboardingFlow({ onComplete }) {
     }
   };
 
-  const handleAuthSubmit = (e) => {
-    e.preventDefault();
-    // Demo profile only: no account, no password, stored in this browser.
-    const userProfile = { name: name.trim() || 'Investigator' };
-    localStorage.setItem('plottwistt_user', JSON.stringify(userProfile));
-    onComplete(userProfile);
-  };
 
   return (
     <div
@@ -175,7 +168,7 @@ export default function OnboardingFlow({ onComplete }) {
             transition: 'all 0.15s',
           }}
         >
-          {currentSlide === 3 ? 'Demo profile' : 'Skip intro'}
+          {currentSlide === 3 ? 'Account' : 'Skip intro'}
         </button>
       </nav>
 
@@ -307,81 +300,8 @@ export default function OnboardingFlow({ onComplete }) {
             </div>
           </div>
         ) : (
-          // Slide 4: Demo profile (no account)
-          <div
-            style={{
-              background: '#FFFFFF',
-              border: '1px solid #FFFFFF',
-              borderRadius: '24px',
-              padding: '36px',
-              boxShadow: 'var(--shadow-soft)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '20px',
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--text-muted)',
-                  fontWeight: 400,
-                  marginBottom: 'var(--space-1)',
-                }}
-              >
-                Demo profile
-              </div>
-              <h2 style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
-                Start the radar demo
-              </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                No account needed. Your name is only kept in this browser to label the console.
-              </p>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-main)', marginBottom: '6px', display: 'block' }}>
-                  Your name (optional)
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Site analyst"
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-panel)',
-                    border: '1px solid rgba(30, 31, 27, 0.16)',
-                    padding: '10px 14px',
-                    borderRadius: '999px',
-                    color: 'var(--text-main)',
-                    fontFamily: 'inherit',
-                    fontSize: 'var(--text-base)',
-                  }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                style={{
-                  background: 'var(--accent)',
-                  border: 'none',
-                  color: 'var(--text-main)',
-                  padding: '12px',
-                  borderRadius: '999px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  marginTop: '6px',
-                  boxShadow: 'var(--shadow-soft)',
-                }}
-              >
-                Continue with demo profile (no account needed)
-              </button>
-            </form>
-
-          </div>
+          // Slide 4: Sign in, create an account, or continue as a guest
+          <AuthCard onComplete={onComplete} />
         )}
       </div>
 
@@ -409,39 +329,6 @@ export default function OnboardingFlow({ onComplete }) {
           }}
         />
 
-        {/* Floating live radar indicator */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '40px',
-            right: '48px',
-            background: 'var(--dark-card)',
-            border: '1px solid var(--dark-border)',
-            borderRadius: '16px',
-            padding: '12px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            boxShadow: 'var(--shadow-soft)',
-          }}
-        >
-          <div
-            style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              background: 'var(--accent)',
-            }}
-          />
-          <div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-on-dark)' }}>
-              Interactive globe
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>
-              Drag globe to rotate 3D view
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

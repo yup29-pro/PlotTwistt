@@ -317,6 +317,29 @@ export default function FrictionFeed({
           {summary}
         </div>
 
+        {analysis.lake_check === 'unavailable' ? (
+          <span
+            role="status"
+            title="OpenStreetMap's lake and drain lookup didn't answer in time, so lake buffers weren't checked for this scan."
+            style={{
+              alignSelf: 'flex-start',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-1)',
+              background: 'var(--chip)',
+              color: 'var(--text-main)',
+              border: '1px solid rgba(30, 31, 27, 0.16)',
+              borderRadius: '999px',
+              padding: '3px 10px',
+              fontSize: 'var(--text-xs)',
+              fontWeight: 500,
+            }}
+          >
+            <Droplets size={12} aria-hidden="true" />
+            Lake check unavailable
+          </span>
+        ) : null}
+
         {/* Degraded: some sources failed (demo data has its own banner) */}
         {analysis.degraded && analysis.data_source !== 'demo' ? (
           <div

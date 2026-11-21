@@ -71,6 +71,9 @@ class AnalyzeResponse(BaseModel):
     lake_buffer_breach: bool = Field(False, description="Pin is inside a 75 m NGT lake buffer (OpenStreetMap)")
     data_source: Literal["live", "cache", "demo"]
     degraded: bool
+    lake_check: Literal["ok", "unavailable", "not_run"] = Field(
+        "not_run", description="Overpass lake/drain check: ok, unavailable (failed or timed out), or not_run (no pin)"
+    )
     analyzed_at: str = Field(..., description="ISO 8601 UTC timestamp")
 
 

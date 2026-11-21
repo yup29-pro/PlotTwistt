@@ -74,6 +74,7 @@ button:focus:not(:focus-visible),
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+.spin { animation: spin 0.9s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

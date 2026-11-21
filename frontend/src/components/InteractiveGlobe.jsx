@@ -5,7 +5,8 @@ import land110m from 'world-atlas/land-110m.json';
 
 /**
  * Dotted-continent globe: land sampled on an even ~2° grid, drawn on an orthographic
- * projection. Drag (or arrow keys) to rotate; inertia on release; slow auto-spin when idle.
+ * projection. Always spins slowly (6°/s, 1°/s with reduced motion); drag or arrow keys to turn it,
+ * with inertia on release.
  */
 
 const INK = '30, 31, 27'; // #1E1F1B
@@ -97,9 +98,9 @@ export default function InteractiveGlobe({ style = {} }) {
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
-    let lastInteraction = -Infinity;
-    const SPIN = 0.06; // degrees per frame when idle (~3.6°/s)
-    const IDLE_MS = 2000;
+    const SPIN_DEG_PER_S = 6;
+    const SPIN_REDUCED_DEG_PER_S = 1;
+    let lastFrame = performance.now();
     const clampPhi = (v) => Math.max(-80, Math.min(80, v));
 
     const degPerPx = () => 90 / Math.max(radius, 1);
@@ -120,14 +121,12 @@ export default function InteractiveGlobe({ style = {} }) {
       phi = clampPhi(phi + velPhi);
       lastX = e.clientX;
       lastY = e.clientY;
-      lastInteraction = performance.now();
     };
     const onPointerUp = (e) => {
       if (!dragging) return;
       dragging = false;
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
       canvas.style.cursor = 'grab';
-      lastInteraction = performance.now();
       if (reducedMotion) velLambda = velPhi = 0;
     };
     const onKeyDown = (e) => {
@@ -138,7 +137,6 @@ export default function InteractiveGlobe({ style = {} }) {
       lambda -= m[0];
       phi = clampPhi(phi - m[1]);
       velLambda = velPhi = 0;
-      lastInteraction = performance.now();
     };
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
@@ -148,15 +146,17 @@ export default function InteractiveGlobe({ style = {} }) {
 
     let frame = 0;
     const render = (now) => {
+      const dt = Math.min((now - lastFrame) / 1000, 0.1); // seconds; clamped after a hidden tab
+      lastFrame = now;
       if (!dragging) {
         if (Math.abs(velLambda) > 0.01 || Math.abs(velPhi) > 0.01) {
           lambda += velLambda;
           phi = clampPhi(phi + velPhi);
           velLambda *= 0.94;
           velPhi *= 0.94;
-        } else if (!reducedMotion && now - lastInteraction > IDLE_MS) {
-          lambda -= SPIN; // drift east-to-west like the real rotation as seen from above
         }
+        // Constant slow spin, eastward like the real Earth; it carries on after a drag.
+        lambda -= (reducedMotion ? SPIN_REDUCED_DEG_PER_S : SPIN_DEG_PER_S) * dt;
       }
 
       const cx = width / 2;

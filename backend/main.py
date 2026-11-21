@@ -11,10 +11,10 @@ from datetime import datetime, timezone
 from typing import Any, Deque, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend import cache
+from backend import auth, cache
 from backend.cache import PRESETS, get_demo_analysis
 from backend.geodata import collect_water_hazards
 from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
@@ -48,17 +48,24 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
+# Time budgets for one scan (seconds): the whole analysis, and the Overpass lake check inside it.
+ANALYSIS_BUDGET_SECONDS = 15.0
+OVERPASS_BUDGET_SECONDS = 6.0
+
 # Simple in-memory per-IP rate limits (single process only).
 RATE_LIMIT_REQUESTS = 10  # /api/analyze
 SUGGEST_RATE_LIMIT_REQUESTS = 60  # /api/suggest: debounced keystrokes, so a higher ceiling
+AUTH_RATE_LIMIT_REQUESTS = 5  # each of /api/auth/login and /api/auth/signup
 RATE_LIMIT_WINDOW_SECONDS = 60.0
 _rate_buckets: Dict[str, Deque[float]] = defaultdict(deque)
 _suggest_buckets: Dict[str, Deque[float]] = defaultdict(deque)
+_login_buckets: Dict[str, Deque[float]] = defaultdict(deque)
+_signup_buckets: Dict[str, Deque[float]] = defaultdict(deque)
 
 
 def reset_rate_limits() -> None:
-    _rate_buckets.clear()
-    _suggest_buckets.clear()
+    for buckets in (_rate_buckets, _suggest_buckets, _login_buckets, _signup_buckets):
+        buckets.clear()
 
 
 def _check_rate(request: Request, buckets: Dict[str, Deque[float]], limit: int, what: str) -> None:
@@ -84,6 +91,14 @@ def enforce_suggest_rate_limit(request: Request) -> None:
     _check_rate(request, _suggest_buckets, SUGGEST_RATE_LIMIT_REQUESTS, "suggestion lookups")
 
 
+def enforce_login_rate_limit(request: Request) -> None:
+    _check_rate(request, _login_buckets, AUTH_RATE_LIMIT_REQUESTS, "sign-in attempts")
+
+
+def enforce_signup_rate_limit(request: Request) -> None:
+    _check_rate(request, _signup_buckets, AUTH_RATE_LIMIT_REQUESTS, "sign-ups")
+
+
 @app.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
 @app.get("/api/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
 def health_check():
@@ -99,6 +114,37 @@ def health_check():
 def get_presets():
     """Return curated reference locations with distinct friction profiles."""
     return PRESETS
+
+
+# ---------- Auth (optional: guests can use everything, /api/analyze stays open) ----------
+
+def _auth_call(fn, *args):
+    try:
+        return fn(*args)
+    except auth.AuthError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from None
+
+
+@app.post("/api/auth/signup", status_code=status.HTTP_201_CREATED, dependencies=[Depends(enforce_signup_rate_limit)])
+def auth_signup(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Create an account. Returns {token, user}."""
+    return _auth_call(auth.signup, payload.get("name"), payload.get("email"), payload.get("password"))
+
+
+@app.post("/api/auth/login", dependencies=[Depends(enforce_login_rate_limit)])
+def auth_login(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Sign in. Every failure returns the same "Invalid email or password"."""
+    return _auth_call(auth.login, payload.get("email"), payload.get("password"))
+
+
+@app.get("/api/auth/me")
+def auth_me(authorization: str = Header(default="")) -> Dict[str, str]:
+    """The signed-in user for a Bearer token, or 401."""
+    scheme, _, token = authorization.partition(" ")
+    user = auth.user_for_token(token) if scheme.lower() == "bearer" and token else None
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not signed in", headers={"WWW-Authenticate": "Bearer"})
+    return user
 
 
 @app.get("/api/suggest", status_code=status.HTTP_200_OK, dependencies=[Depends(enforce_suggest_rate_limit)])
@@ -204,18 +250,37 @@ async def analyze_location(
             return _with_score({**cached, "data_source": "cache"})
 
     logger.info("Executing live SerpApi collector for '%s' (%s)...", locality, intent)
-    # Geodata only runs with real coordinates, in parallel with the SerpApi searches.
-    hazards_task = collect_water_hazards(lat, lng) if lat is not None and lng is not None else _no_hazards()
-    raw_signals, hazards = await asyncio.gather(
-        collect_location_signals(locality, intent, lat, lng), hazards_task, return_exceptions=True
-    )
-    geo_failed = isinstance(hazards, BaseException)
-    if geo_failed:
-        logger.warning("Geodata lookup failed (%s); continuing without it.", type(hazards).__name__)
-        hazards = []
-    if isinstance(raw_signals, BaseException):
-        logger.warning("Live collection failed (%s). Trying demo fallback.", type(raw_signals).__name__)
-        return _with_score(_demo_response(locality))
+    # Searches and the Overpass lake check run in parallel under one total budget; whatever
+    # finishes in time is used and the rest is cancelled, so a slow upstream can't hang the scan.
+    signals_task = asyncio.create_task(collect_location_signals(locality, intent, lat, lng))
+    hazards_task = None
+    if lat is not None and lng is not None:
+        hazards_task = asyncio.create_task(
+            asyncio.wait_for(collect_water_hazards(lat, lng), OVERPASS_BUDGET_SECONDS)
+        )
+    tasks = [t for t in (signals_task, hazards_task) if t is not None]
+    _, pending = await asyncio.wait(tasks, timeout=ANALYSIS_BUDGET_SECONDS)
+    for task in pending:
+        task.cancel()
+    timed_out = signals_task in pending
+
+    if hazards_task is None:
+        hazards, lake_check, geo_failed = [], "not_run", False
+    elif hazards_task in pending or hazards_task.exception() is not None:
+        reason = "timeout" if hazards_task in pending else type(hazards_task.exception()).__name__
+        logger.warning("Geodata lookup unavailable (%s); continuing without it.", reason)
+        hazards, lake_check, geo_failed = [], "unavailable", True
+    else:
+        hazards, lake_check, geo_failed = hazards_task.result(), "ok", False
+
+    if timed_out:
+        logger.warning("Search collection exceeded the %.0f s budget; returning partial results.", ANALYSIS_BUDGET_SECONDS)
+        raw_signals: Any = {"signals": [], "total_signals": 0, "failed_searches": 1, "total_searches": 1}
+    elif signals_task.exception() is not None:
+        logger.warning("Live collection failed (%s). Trying demo fallback.", type(signals_task.exception()).__name__)
+        return _with_score({**_demo_response(locality), "lake_check": lake_check})
+    else:
+        raw_signals = signals_task.result()
 
     synth_failed = False
     try:
@@ -227,7 +292,8 @@ async def analyze_location(
 
     result.update(
         data_source="live",
-        degraded=raw_signals.get("failed_searches", 0) > 0 or geo_failed or synth_failed,
+        lake_check=lake_check,
+        degraded=timed_out or raw_signals.get("failed_searches", 0) > 0 or geo_failed or synth_failed,
         analyzed_at=_utc_now(),
     )
     result = _with_score(result)

@@ -25,7 +25,7 @@ OVERPASS_URLS = [
     "https://overpass.private.coffee/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ]
-OVERPASS_TIMEOUT = 8.0  # total budget across all servers
+OVERPASS_TIMEOUT = 6.0  # total budget across all servers (main.py also caps the call at 6 s)
 # overpass-api.de answers 406 to the default python-httpx User-Agent.
 OVERPASS_HEADERS = {"User-Agent": "PlotTwistt/1.0 (civic friction radar demo)", "Accept": "application/json"}
 # Flags only fire within 200 m; Overpass 'around' matches any part of a way, so 250 m finds the same flags as 1 km.
