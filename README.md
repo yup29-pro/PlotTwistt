@@ -10,7 +10,7 @@ When choosing a property for a **warehouse**, **retail store**, or **plot invest
 - **Zoning & Regulatory Traps:** NGT lake buffer zone encroachments, road widening demolition notices, land acquisition disputes.
 - **Civic & Operational Headaches:** Heavy truck daytime entry bans, neighbor noise friction, industrial dumping ground smells.
 
-**PlotTwistt** takes a dropped pin or locality search and user intent, queries live search and intelligence feeds via **SerpApi** & **You.com**, and delivers a categorized **Friction Radar** with an indisputable **Receipt Trail** (exact quotes, source publishers, and direct links).
+**PlotTwistt** takes a dropped pin or locality search and user intent, queries live search and intelligence feeds via **SerpApi**, and delivers a categorized **Friction Radar** with an indisputable **Receipt Trail** (exact quotes, source publishers, and direct links).
 
 ---
 
@@ -29,7 +29,7 @@ PlotTwistt/
 │   ├── cache.py              # File-based caching, presets, and safe demo fallbacks
 │   ├── main.py               # FastAPI entrypoint (/health, /api/presets, /api/analyze)
 │   ├── serpapi_collector.py  # SerpApi signal extractor [Owned by Teammate 1]
-│   ├── synthesizer.py        # You.com synthesis agent [Owned by Teammate 2]
+│   ├── synthesizer.py        # Signal classification & friction scoring [Owned by Teammate 2]
 │   ├── cache/
 │   │   └── .gitkeep
 │   └── tests/
@@ -53,7 +53,7 @@ To allow parallel development during the buildathon without merge conflicts:
 |---|---|---|
 | `main` | Core / Lead | Baseline schema, cache, fallback responses, FastAPI core, tests |
 | `feat/serpapi-collector` | Teammate 1 | `backend/serpapi_collector.py` (SerpApi Google search, Maps & news queries) |
-| `feat/you-synthesizer` | Teammate 2 | `backend/synthesizer.py` (You.com live cited web synthesis & friction scoring) |
+| `feat/you-synthesizer` | Teammate 2 | `backend/synthesizer.py` (signal classification & friction scoring) |
 | `feat/frontend-radar` | Teammate 3 | `frontend/` (Map picker, intent selector, friction dials, receipt drawer) |
 
 ### Recommended Merge Sequence:
