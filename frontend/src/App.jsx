@@ -43,7 +43,7 @@ export default function App() {
 
   const checkBackendHealth = async () => {
     try {
-      const res = await fetch('http://localhost:8000/health', { method: 'GET' });
+      const res = await fetch('/api/health', { method: 'GET' });
       if (res.ok) {
         setBackendConnected(true);
       } else {
@@ -70,7 +70,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/analyze', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query, status
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend import cache
@@ -14,6 +18,8 @@ from backend.cache import PRESETS, get_demo_analysis
 from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
 from backend.serpapi_collector import collect_location_signals
 from backend.synthesizer import synthesize_friction_report
+
+load_dotenv()
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -25,17 +31,47 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS for Vite frontend (http://localhost:5173) and any origin
+
+def _cors_origins() -> List[str]:
+    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+# Simple in-memory per-IP rate limit for /api/analyze (single process only).
+RATE_LIMIT_REQUESTS = 10
+RATE_LIMIT_WINDOW_SECONDS = 60.0
+_rate_buckets: Dict[str, Deque[float]] = defaultdict(deque)
+
+
+def reset_rate_limits() -> None:
+    _rate_buckets.clear()
+
+
+def enforce_rate_limit(request: Request) -> None:
+    ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    bucket = _rate_buckets[ip]
+    while bucket and now - bucket[0] >= RATE_LIMIT_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_REQUESTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded: at most {RATE_LIMIT_REQUESTS} analyses per minute.",
+            headers={"Retry-After": str(int(RATE_LIMIT_WINDOW_SECONDS - (now - bucket[0])) + 1)},
+        )
+    bucket.append(now)
 
 
 @app.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
+@app.get("/api/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
 def health_check():
     """Health check endpoint to verify service availability."""
     return {
@@ -94,7 +130,12 @@ def _demo_response(locality: str) -> Dict[str, Any]:
     }
 
 
-@app.post("/api/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_200_OK)
+@app.post(
+    "/api/analyze",
+    response_model=AnalyzeResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_rate_limit)],
+)
 async def analyze_location(
     request: AnalyzeRequest,
     refresh: bool = Query(default=False, description="Bypass cache and force live recalculation"),
