@@ -35,7 +35,8 @@ def fake_get(monkeypatch):
             raise httpx.ConnectError(f"boom {url}?api_key={params['api_key']}")
         if params["engine"] == "google_news":
             return _response({"news_results": [{"title": "Bellandur news item", "link": "https://e.com/n"}]})
-        return _response({"organic_results": [{"title": "Bellandur web item", "link": "https://e.com/w"}]})
+        organic = state.get("organic") or [{"title": "Bellandur web item", "link": "https://e.com/w"}]
+        return _response({"organic_results": organic})
 
     monkeypatch.setattr(httpx.AsyncClient, "get", get)
     return state
@@ -116,3 +117,66 @@ def test_valid_corridor_is_used_in_queries(fake_get):
     result = collect()
     assert result["corridor"] == "Bellandur"
     assert sum('"Bellandur"' in q for q in fake_get["queries"]) >= 3
+
+
+GOTO = "https://www.google.com/goto?url="
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        (GOTO + "https%3A%2F%2Fwww.thehindu.com%2Fnews%2Fa", "https://www.thehindu.com/news/a"),
+        ("https://google.com/url?q=https://www.deccanherald.com/x&sa=U", "https://www.deccanherald.com/x"),
+        ("https://www.google.com/amp/s/?url=https%3A%2F%2Fscroll.in%2Fa", "https://scroll.in/a"),
+        (GOTO + "javascript%3Aalert(1)", None),
+        ("https://www.google.com/goto?gsessionid=abc", None),
+        (GOTO + "ftp%3A%2F%2Fexample.com%2Ff", None),
+        (GOTO + "https%3A%2F%2F%2Fno-host", None),
+        (GOTO + "https%3A%2F%2Fwww.google.com%2Furl%3Fq%3Dhttps%3A%2F%2Fe.com", None),
+        (GOTO + "https%3A%2F%2Fe.com%2Fa%20b", None),
+        ("https://www.thehindu.com/news/cities/bangalore/a.ece", "https://www.thehindu.com/news/cities/bangalore/a.ece"),
+        ("https://evilgoogle.com/goto?url=https%3A%2F%2Fe.com", "https://evilgoogle.com/goto?url=https%3A%2F%2Fe.com"),
+        ("https://www.google.com/maps/place/Bellandur", "https://www.google.com/maps/place/Bellandur"),
+    ],
+)
+def test_unwrap_redirect_url(url, expected):
+    assert collector.unwrap_redirect_url(url) == expected
+
+
+def test_goto_links_unwrapped_before_synthesis(fake_get):
+    from backend.synthesizer import synthesize_friction_report
+
+    fake_get["organic"] = [
+        {"title": "Bellandur lake overflow floods the ORR",
+         "link": "https://www.deccanherald.com/city/flood", "displayed_link": "https://www.deccanherald.com › city"},
+        {"title": "Catastrophic rainfall Bengaluru lakes overflow again",
+         "link": GOTO + "https%3A%2F%2Fwww.facebook.com%2Fphoto%2F1", "displayed_link": "https://www.facebook.com › photo"},
+        {"title": "Bellandur flooding leaves residents stranded again",
+         "link": GOTO + "https%3A%2F%2Fwww.thehindu.com%2Fnews%2Fflood", "displayed_link": "30+ reactions"},
+        {"title": "Bellandur drain overflow javascript link",
+         "link": GOTO + "javascript%3Aalert(1)", "displayed_link": "1 year ago"},
+        {"title": "Bellandur waterlogging with no url param", "link": "https://www.google.com/goto?gsessionid=x"},
+    ]
+    result = collect()
+    by_url = {s["url"]: s for s in result["signals"] if s["category"] == "flooding_drainage"}
+    assert set(by_url) == {
+        "https://www.facebook.com/photo/1",
+        "https://www.thehindu.com/news/flood",
+        "https://www.deccanherald.com/city/flood",
+    }
+    assert by_url["https://www.thehindu.com/news/flood"]["source"] == "thehindu.com"
+    assert by_url["https://www.deccanherald.com/city/flood"]["source"] == "deccanherald.com"
+    assert not any("google.com" in s["url"] for s in result["signals"])
+
+    report = asyncio.run(synthesize_friction_report("Bellandur", "warehouse", result))
+    urls = {f["url"] for f in report["flags"]}
+    assert "https://www.facebook.com/photo/1" not in urls
+    assert "https://www.thehindu.com/news/flood" in urls
+
+
+def test_named_source_is_kept(fake_get):
+    fake_get["organic"] = [{"title": "Bellandur flood item", "link": GOTO + "https%3A%2F%2Fwww.thehindu.com%2Fa",
+                            "displayed_link": "The Hindu"}]
+    result = collect()
+    organic = [s for s in result["signals"] if s["category"] != "civic_incident"]
+    assert {s["source"] for s in organic} == {"The Hindu"}
