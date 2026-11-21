@@ -1,21 +1,25 @@
 """PlotTwistt FastAPI Main Application."""
 
 from __future__ import annotations
-import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
-from fastapi import FastAPI, Query, status
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
 
-from backend.cache import (
-    PRESETS,
-    get_cached_response,
-    get_fallback_response,
-    save_cached_response,
-)
+import logging
+import os
+import time
+from collections import defaultdict, deque
+from datetime import datetime, timezone
+from typing import Any, Deque, Dict, List, Optional
+
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+
+from backend import cache
+from backend.cache import PRESETS, get_demo_analysis
+from backend.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, Preset
 from backend.serpapi_collector import collect_location_signals
 from backend.synthesizer import synthesize_friction_report
+
+load_dotenv()
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -27,33 +31,47 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS for Vite frontend (http://localhost:5173) and any origin
+
+def _cors_origins() -> List[str]:
+    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
-
-# Flexible Request Model matching both Frontend UI and SPEC.md
-class LocationObj(BaseModel):
-    lat: Optional[float] = None
-    lng: Optional[float] = None
-    address: Optional[str] = None
-    locality: Optional[str] = None
-    city: Optional[str] = "Bengaluru"
+# Simple in-memory per-IP rate limit for /api/analyze (single process only).
+RATE_LIMIT_REQUESTS = 10
+RATE_LIMIT_WINDOW_SECONDS = 60.0
+_rate_buckets: Dict[str, Deque[float]] = defaultdict(deque)
 
 
-class FlexibleAnalyzeRequest(BaseModel):
-    location: Union[str, LocationObj]
-    lat: Optional[float] = None
-    lng: Optional[float] = None
-    intent: str = "warehouse"
+def reset_rate_limits() -> None:
+    _rate_buckets.clear()
 
 
-@app.get("/health", status_code=status.HTTP_200_OK)
+def enforce_rate_limit(request: Request) -> None:
+    ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    bucket = _rate_buckets[ip]
+    while bucket and now - bucket[0] >= RATE_LIMIT_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_REQUESTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded: at most {RATE_LIMIT_REQUESTS} analyses per minute.",
+            headers={"Retry-After": str(int(RATE_LIMIT_WINDOW_SECONDS - (now - bucket[0])) + 1)},
+        )
+    bucket.append(now)
+
+
+@app.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
+@app.get("/api/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
 def health_check():
     """Health check endpoint to verify service availability."""
     return {
@@ -63,43 +81,86 @@ def health_check():
     }
 
 
-@app.get("/api/presets", status_code=status.HTTP_200_OK)
+@app.get("/api/presets", response_model=List[Preset], status_code=status.HTTP_200_OK)
 def get_presets():
     """Return curated reference locations with distinct friction profiles."""
     return PRESETS
 
 
-@app.post("/api/analyze", status_code=status.HTTP_200_OK)
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _resolve_query(request: AnalyzeRequest) -> tuple[str, Optional[float], Optional[float]]:
+    """Return (locality, lat, lng) from either request shape; coordinates may be None."""
+    if isinstance(request.location, str):
+        return request.location, request.lat, request.lng
+    loc = request.location
+    locality = loc.locality if loc.locality is not None else loc.address
+    if locality is None:
+        locality = loc.city if loc.city is not None else "Bengaluru"
+    lat = loc.lat if loc.lat is not None else request.lat
+    lng = loc.lng if loc.lng is not None else request.lng
+    return locality, lat, lng
+
+
+def _demo_response(locality: str) -> Dict[str, Any]:
+    """Demo data for a known demo locality; 503 for anything else."""
+    demo = get_demo_analysis(locality)
+    if demo is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Live data is unavailable right now and there is no demo data for '{locality}'. Please try again later.",
+        )
+    flags = []
+    for flag in demo["flags"]:
+        flag = dict(flag)
+        flag.setdefault("distance_km", None)
+        flag.setdefault("distance_label", "Area-level")
+        flag.setdefault("proximity_tier", "district")
+        flags.append(flag)
+    return {
+        **demo,
+        "hierarchy": demo.get("hierarchy", {}),
+        "flags": flags,
+        "total_flags": len(flags),
+        "data_source": "demo",
+        "degraded": True,
+        "analyzed_at": _utc_now(),
+    }
+
+
+@app.post(
+    "/api/analyze",
+    response_model=AnalyzeResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_rate_limit)],
+)
 async def analyze_location(
-    request: FlexibleAnalyzeRequest,
+    request: AnalyzeRequest,
     refresh: bool = Query(default=False, description="Bypass cache and force live recalculation"),
 ):
     """Analyze a location and intent for land, civic, and environmental friction."""
-    # Normalize locality name and coordinates
-    if isinstance(request.location, str):
-        locality = request.location
-        lat = request.lat or 12.9716
-        lng = request.lng or 77.5946
-    else:
-        locality = request.location.locality or request.location.address or "Bengaluru"
-        lat = request.location.lat or request.lat or 12.9716
-        lng = request.location.lng or request.lng or 77.5946
+    locality, lat, lng = _resolve_query(request)
+    intent = request.intent.value
 
-    intent = request.intent.lower()
+    if not refresh:
+        cached = cache.get_cached_response(locality, intent)
+        if cached is not None:
+            return {**cached, "data_source": "cache"}
 
-    # 1. Attempt live SerpApi collection + synthesis
     try:
         logger.info("Executing live SerpApi collector for '%s' (%s)...", locality, intent)
         raw_signals = await collect_location_signals(locality, intent, lat, lng)
-        logger.info("Synthesizing %d signals into cited receipt flags...", raw_signals.get("total_signals", 0))
-        result = await synthesize_friction_report(locality, intent, raw_signals)
-        return result
     except Exception as exc:
-        logger.warning(
-            "Live analysis pipeline encountered exception (%s: %s). Serving safe demo preset.",
-            type(exc).__name__,
-            exc,
-        )
-        # Fallback to rich pre-configured demo analysis matching frontend format
-        from backend.cache import get_frontend_compatible_fallback
-        return get_frontend_compatible_fallback(locality, intent)
+        logger.warning("Live collection failed (%s). Trying demo fallback.", type(exc).__name__)
+        return _demo_response(locality)
+
+    result = await synthesize_friction_report(locality, intent, raw_signals)
+    result.update(
+        data_source="live",
+        degraded=raw_signals.get("failed_searches", 0) > 0,
+        analyzed_at=_utc_now(),
+    )
+    cache.save_cached_response(locality, intent, result)
+    return result

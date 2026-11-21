@@ -1,108 +1,150 @@
-"""Tests for PlotTwistt API endpoints and fallback/caching mechanics."""
+"""API contract tests. Never touch the network (see conftest)."""
 
-import unittest
-from fastapi.testclient import TestClient
-from backend.main import app
-from backend.schemas import IntentType, Location, AnalyzeRequest
-from backend.cache import make_cache_slug, get_cached_response
+from datetime import datetime
 
+from backend.schemas import AnalyzeResponse, IntentType
 
-class TestPlotTwisttAPI(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.client = TestClient(app)
-
-    def test_health_endpoint(self):
-        """Verify health check returns 200 and expected status."""
-        response = self.client.get("/health")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["status"], "ok")
-        self.assertIn("PlotTwistt", data["service"])
-        self.assertIn("timestamp", data)
-
-    def test_presets_endpoint(self):
-        """Verify /api/presets returns the curated demo locations."""
-        response = self.client.get("/api/presets")
-        self.assertEqual(response.status_code, 200)
-        presets = response.json()
-        self.assertIsInstance(presets, list)
-        self.assertGreaterEqual(len(presets), 3)
-
-        preset_ids = [p["id"] for p in presets]
-        self.assertIn("bellandur-lake-corridor", preset_ids)
-        self.assertIn("peenya-industrial-area", preset_ids)
-        self.assertIn("indiranagar-100ft-road", preset_ids)
-
-        # Validate schema of first item
-        first = presets[0]
-        self.assertIn("location", first)
-        self.assertIn("lat", first["location"])
-        self.assertIn("lng", first["location"])
-        self.assertIn("intent", first)
-        self.assertIn(first["intent"], ["warehouse", "retail", "plot"])
-
-    def test_analyze_fallback_safe_execution(self):
-        """Verify /api/analyze executes safely and falls back gracefully when live collectors are unconfigured."""
-        payload = {
-            "location": {
-                "lat": 12.9298,
-                "lng": 77.6749,
-                "address": "Bellandur Outer Ring Road, Bengaluru",
-                "locality": "Bellandur",
-                "city": "Bengaluru",
-            },
-            "intent": "warehouse",
-        }
-
-        # Request analysis
-        response = self.client.post("/api/analyze?refresh=true", json=payload)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-
-        # Validate SPEC.md conformity
-        self.assertIn("friction_score", data)
-        self.assertTrue(0 <= data["friction_score"] <= 100)
-        self.assertIn("verdict", data)
-        self.assertIn("summary", data)
-        self.assertIn("friction_points", data)
-        self.assertGreater(len(data["friction_points"]), 0)
-
-        first_point = data["friction_points"][0]
-        self.assertIn("category", first_point)
-        self.assertIn("severity", first_point)
-        self.assertIn("receipts", first_point)
-        self.assertGreater(len(first_point["receipts"]), 0)
-
-        receipt = first_point["receipts"][0]
-        self.assertIn("title", receipt)
-        self.assertIn("url", receipt)
-        self.assertIn("exact_quote", receipt)
-        self.assertTrue(receipt["url"].startswith("http"))
-
-    def test_analyze_cache_behavior(self):
-        """Verify repeated request hits cache."""
-        payload = {
-            "location": {
-                "lat": 12.9719,
-                "lng": 77.6412,
-                "address": "100 Feet Road, Indiranagar",
-                "locality": "Indiranagar",
-                "city": "Bengaluru",
-            },
-            "intent": "retail",
-        }
-
-        # First request
-        res1 = self.client.post("/api/analyze", json=payload)
-        self.assertEqual(res1.status_code, 200)
-
-        # Second request (should be cached)
-        res2 = self.client.post("/api/analyze", json=payload)
-        self.assertEqual(res2.status_code, 200)
-        data2 = res2.json()
-        self.assertTrue(data2["cached"])
+BELLANDUR = {"location": "Bellandur", "intent": "warehouse"}
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_health(client):
+    res = client.get("/health")
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+
+
+def test_presets_flat_shape(client):
+    res = client.get("/api/presets")
+    assert res.status_code == 200
+    presets = res.json()
+    assert len(presets) >= 3
+    for p in presets:
+        assert set(p) == {"id", "name", "lat", "lng", "intent", "description"}
+        assert p["intent"] in {i.value for i in IntentType}
+
+
+def test_live_success_matches_contract(client, collector):
+    res = client.post("/api/analyze", json=BELLANDUR)
+    assert res.status_code == 200
+    body = AnalyzeResponse.model_validate(res.json())
+    assert body.data_source == "live"
+    assert body.degraded is False
+    assert body.total_flags == len(body.flags) > 0
+    assert datetime.fromisoformat(body.analyzed_at).utcoffset().total_seconds() == 0
+
+
+def test_location_object_accepted(client, collector):
+    payload = {"location": {"locality": "Bellandur", "lat": 12.93, "lng": 77.67}, "intent": "plot"}
+    assert client.post("/api/analyze", json=payload).status_code == 200
+
+
+def test_invalid_intent_is_422(client, collector):
+    res = client.post("/api/analyze", json={"location": "Bellandur", "intent": "factory"})
+    assert res.status_code == 422
+
+
+def test_invalid_lat_is_422(client, collector):
+    res = client.post("/api/analyze", json={"location": "Bellandur", "lat": 95, "intent": "plot"})
+    assert res.status_code == 422
+
+
+def test_invalid_nested_lng_is_422(client, collector):
+    payload = {"location": {"locality": "Bellandur", "lng": 200}, "intent": "plot"}
+    assert client.post("/api/analyze", json=payload).status_code == 422
+
+
+def test_total_failure_known_locality_serves_demo(client, collector):
+    collector["result"] = RuntimeError("all searches failed")
+    res = client.post("/api/analyze", json=BELLANDUR)
+    assert res.status_code == 200
+    body = AnalyzeResponse.model_validate(res.json())
+    assert body.data_source == "demo"
+    assert "Bellandur" in body.location
+
+
+def test_total_failure_unknown_locality_is_503(client, collector):
+    collector["result"] = RuntimeError("all searches failed")
+    res = client.post("/api/analyze", json={"location": "Whitefield", "intent": "retail"})
+    assert res.status_code == 503
+    assert "Whitefield" in res.json()["detail"]
+
+
+def test_overlong_location_is_422(client, collector):
+    res = client.post("/api/analyze", json={"location": "x" * 201, "intent": "plot"})
+    assert res.status_code == 422
+
+
+def test_second_call_served_from_cache(client, collector):
+    first = client.post("/api/analyze", json=BELLANDUR).json()
+    second = client.post("/api/analyze", json=BELLANDUR).json()
+    assert first["data_source"] == "live"
+    assert second["data_source"] == "cache"
+    assert second["flags"] == first["flags"]
+    assert collector["calls"] == 1
+
+
+def test_refresh_bypasses_cache(client, collector):
+    client.post("/api/analyze", json=BELLANDUR)
+    res = client.post("/api/analyze?refresh=true", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_cache_key_includes_intent(client, collector):
+    client.post("/api/analyze", json=BELLANDUR)
+    res = client.post("/api/analyze", json={"location": "Bellandur", "intent": "retail"}).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_expired_cache_is_ignored(client, collector, tmp_path, monkeypatch):
+    import os
+    import time
+
+    monkeypatch.setenv("CACHE_TTL_HOURS", "1")
+    client.post("/api/analyze", json=BELLANDUR)
+    old = time.time() - 2 * 3600
+    for f in tmp_path.glob("*.json"):
+        os.utime(f, (old, old))
+    res = client.post("/api/analyze", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_partial_failure_sets_degraded(client, collector):
+    from backend.tests.conftest import make_signals
+
+    collector["result"] = make_signals(failed=2)
+    res = client.post("/api/analyze", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert res["degraded"] is True
+
+
+def test_unmocked_pipeline_without_key_stays_offline(client, tmp_path):
+    """Real collector with SERPAPI_API_KEY unset: no network, demo for a known locality."""
+    res = client.post("/api/analyze", json=BELLANDUR)
+    assert res.status_code == 200
+    assert res.json()["data_source"] == "demo"
+    assert list(tmp_path.glob("*.json")) == []
+
+
+def test_demo_results_are_not_cached(client, collector):
+    from backend.tests.conftest import make_signals
+
+    collector["result"] = RuntimeError("down")
+    assert client.post("/api/analyze", json=BELLANDUR).json()["data_source"] == "demo"
+    collector["result"] = make_signals()
+    assert client.post("/api/analyze", json=BELLANDUR).json()["data_source"] == "live"
+
+
+def test_non_ascii_localities_do_not_share_a_cache_entry(client, collector):
+    client.post("/api/analyze", json={"location": "ಬೆಳ್ಳಂದೂರು", "intent": "plot"})
+    res = client.post("/api/analyze", json={"location": "ಪೀಣ್ಯ", "intent": "plot"}).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+
+
+def test_cache_key_ignores_case_and_spacing(client, collector):
+    client.post("/api/analyze", json={"location": "Bellandur", "intent": "plot"})
+    res = client.post("/api/analyze", json={"location": "  bellandur ", "intent": "plot"}).json()
+    assert res["data_source"] == "cache"

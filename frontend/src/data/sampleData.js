@@ -222,5 +222,7 @@ export function getSampleAnalysis(location = "", intent = "warehouse") {
   if (locLower.includes("peenya")) return SAMPLE_ANALYSES["peenya-industrial"];
   if (locLower.includes("indiranagar")) return SAMPLE_ANALYSES["indiranagar-100ft"];
   if (locLower.includes("sarjapur")) return SAMPLE_ANALYSES["sarjapur-sprawl"];
-  return SAMPLE_ANALYSES["bellandur-buffer"];
+  if (locLower.includes("bellandur")) return SAMPLE_ANALYSES["bellandur-buffer"];
+  // No sample for other places: never show one locality's data for another.
+  return null;
 }

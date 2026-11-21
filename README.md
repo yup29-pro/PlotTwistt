@@ -10,7 +10,7 @@ When choosing a property for a **warehouse**, **retail store**, or **plot invest
 - **Zoning & Regulatory Traps:** NGT lake buffer zone encroachments, road widening demolition notices, land acquisition disputes.
 - **Civic & Operational Headaches:** Heavy truck daytime entry bans, neighbor noise friction, industrial dumping ground smells.
 
-**PlotTwistt** takes a dropped pin or locality search and user intent, queries live search and intelligence feeds via **SerpApi** & **You.com**, and delivers a categorized **Friction Radar** with an indisputable **Receipt Trail** (exact quotes, source publishers, and direct links).
+**PlotTwistt** takes a dropped pin or locality search and user intent, queries live search and intelligence feeds via **SerpApi**, and delivers a categorized **Friction Radar** with an indisputable **Receipt Trail** (exact quotes, source publishers, and direct links).
 
 ---
 
@@ -25,11 +25,11 @@ PlotTwistt/
 ├── backend/
 │   ├── __init__.py
 │   ├── requirements.txt      # FastAPI, uvicorn, pydantic, httpx, pytest
-│   ├── schemas.py            # Pydantic schemas (Intent, Location, Receipt, AnalysisResult)
+│   ├── schemas.py            # Pydantic schemas (AnalyzeRequest, Flag, AnalyzeResponse, Preset)
 │   ├── cache.py              # File-based caching, presets, and safe demo fallbacks
 │   ├── main.py               # FastAPI entrypoint (/health, /api/presets, /api/analyze)
 │   ├── serpapi_collector.py  # SerpApi signal extractor [Owned by Teammate 1]
-│   ├── synthesizer.py        # You.com synthesis agent [Owned by Teammate 2]
+│   ├── synthesizer.py        # Signal classification & friction scoring [Owned by Teammate 2]
 │   ├── cache/
 │   │   └── .gitkeep
 │   └── tests/
@@ -53,7 +53,7 @@ To allow parallel development during the buildathon without merge conflicts:
 |---|---|---|
 | `main` | Core / Lead | Baseline schema, cache, fallback responses, FastAPI core, tests |
 | `feat/serpapi-collector` | Teammate 1 | `backend/serpapi_collector.py` (SerpApi Google search, Maps & news queries) |
-| `feat/you-synthesizer` | Teammate 2 | `backend/synthesizer.py` (You.com live cited web synthesis & friction scoring) |
+| `feat/you-synthesizer` | Teammate 2 | `backend/synthesizer.py` (signal classification & friction scoring) |
 | `feat/frontend-radar` | Teammate 3 | `frontend/` (Map picker, intent selector, friction dials, receipt drawer) |
 
 ### Recommended Merge Sequence:
@@ -86,14 +86,14 @@ venv\Scripts\activate
 pip install -r backend/requirements.txt
 
 # Run test suite
-pytest backend/tests/test_api.py -v
+python -m pytest -q backend/tests   # fully mocked, no network
 
 # Start FastAPI server
 uvicorn backend.main:app --reload --port 8000
 ```
 
 ### 2. Available Endpoints
-- **Health check:** `GET http://localhost:8000/health`
+- **Health check:** `GET http://localhost:8000/health` (alias `/api/health`)
 - **Curated Demo Presets:** `GET http://localhost:8000/api/presets`
 - **Analyze Site:** `POST http://localhost:8000/api/analyze` (Supports `?refresh=true` to force live recalculation)
 - **Interactive OpenAPI docs:** `http://localhost:8000/docs`
@@ -101,6 +101,6 @@ uvicorn backend.main:app --reload --port 8000
 ---
 
 ## 🛡️ Built-in Demo Reliability
-- **Smart Response Caching**: Results are cached in `backend/cache/<slug>.json` to ensure zero token wastage and instant replay during live demos.
-- **Fail-Safe Fallback**: If external API keys expire, hit quota limits, or network drops, `backend/cache.py` automatically produces structured demo responses matching the `SPEC.md` contract with realistic friction points and receipt citations.
+- **Response caching**: Live results are cached in `backend/cache/<locality>-<hash>_<intent>.json` for `CACHE_TTL_HOURS` (default 24) and served with `data_source: "cache"`. Use `?refresh=true` to bypass.
+- **Demo fallback**: If live collection fails entirely, the four preset localities return curated sample data marked `data_source: "demo"` (the UI shows a DEMO banner). Any other locality returns HTTP 503 rather than borrowed data.
 

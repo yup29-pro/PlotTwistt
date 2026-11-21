@@ -1,45 +1,185 @@
 """Live multi-angle synthesizer for PlotTwistt.
 
-Transforms harvested real-world signals into rich, informative friction cards.
-Calculates estimated proximity radius (e.g. '0.8 km from target') and ranks closest events first.
+Transforms harvested real-world signals into friction cards. Distances are only
+reported when a signal carries real coordinates; otherwise the card says which
+place name the source mentions.
 """
 
 from __future__ import annotations
-import hashlib
-import random
+
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+
+from backend.serpapi_collector import haversine_distance
+
+HEADLINE_MAX = 75
+# Tier values are unchanged for the frontend; labels describe where the locality appears.
+TIER_LABELS = {
+    "hyperlocal": "Names locality",  # in the title
+    "corridor": "Mentions locality",  # only in the snippet
+    "district": "Area-level",  # absent, or only city/state names
+}
+# City/state names never count as naming the locality.
+GENERIC_PLACES = {"bengaluru", "bangalore", "karnataka", "india"}
+TIER_RANK = {"hyperlocal": 0, "corridor": 1, "district": 2}
+SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
 
 
-def estimate_event_distance(target_locality: str, text: str, source_category: str) -> Dict[str, Any]:
-    """Estimate approximate radial distance of the event relative to target."""
-    clean_target = target_locality.lower().strip()
+def _mentions(place: Optional[str], text: str) -> bool:
+    if not place:
+        return False
     text_lower = text.lower()
+    words = [w for w in place.lower().split() if len(w) > 3 and w not in GENERIC_PLACES]
+    return any(word in text_lower for word in words)
 
-    # Deterministic seed from title to ensure consistent distance badge across re-renders
-    seed = int(hashlib.md5(text.encode("utf-8")).hexdigest()[:6], 16)
-    rng = random.Random(seed)
 
-    # If the exact neighborhood name is mentioned in the headline/snippet, it is hyper-local (< 1.2 km)
-    if any(word in text_lower for word in clean_target.split() if len(word) > 3):
-        dist_km = round(rng.uniform(0.2, 1.2), 1)
-        proximity_label = f"~{dist_km} km away (Immediate Vicinity)"
+def estimate_event_distance(
+    target_locality: str,
+    title: str,
+    snippet: str = "",
+    target_lat: Optional[float] = None,
+    target_lng: Optional[float] = None,
+    signal_lat: Optional[float] = None,
+    signal_lng: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Real distance when both points have coordinates; otherwise a mention-based tier."""
+    if None not in (target_lat, target_lng, signal_lat, signal_lng):
+        dist_km = haversine_distance(target_lat, target_lng, signal_lat, signal_lng)
+        tier = "hyperlocal" if dist_km < 1.5 else "corridor" if dist_km < 4.0 else "district"
+        return {"distance_km": dist_km, "distance_label": f"{dist_km} km from target", "proximity_tier": tier}
+
+    if _mentions(target_locality, title):
         tier = "hyperlocal"
-    # If corridor/ward level mentions
-    elif any(k in text_lower for k in ["road", "station", "circle", "junction", "nagar", "layout", "cross"]):
-        dist_km = round(rng.uniform(1.4, 3.8), 1)
-        proximity_label = f"~{dist_km} km away (Corridor Sector)"
+    elif _mentions(target_locality, snippet):
         tier = "corridor"
     else:
-        dist_km = round(rng.uniform(4.0, 7.5), 1)
-        proximity_label = f"~{dist_km} km away (Sub-district)"
         tier = "district"
+    return {"distance_km": None, "distance_label": TIER_LABELS[tier], "proximity_tier": tier}
 
+
+def _truncate(title: str) -> str:
+    return title[:HEADLINE_MAX] + "..." if len(title) > HEADLINE_MAX else title
+
+
+def _words(*patterns: str) -> "re.Pattern[str]":
+    return re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE)
+
+
+# (topic, category, whole-word pattern). First match wins, so specific topics come first.
+TOPIC_RULES: List[Tuple[str, str, "re.Pattern[str]"]] = [
+    ("heavy_vehicle", "access_infrastructure", _words(
+        r"(?:truck|lorry) bans?", r"ban(?:s|ned|ning)? (?:on )?(?:trucks?|lorries)", r"heavy[- ]vehicles?",
+        r"goods vehicles?", r"multi-axle", r"no[- ]entry", r"vehicle restrictions?")),
+    ("power_line", "access_infrastructure", _words(
+        r"power lines?", r"high[- ]tension", r"HT lines?", r"overhead lines?", r"transmission lines?", r"line clearance")),
+    ("narrow_road", "access_infrastructure", _words(
+        r"narrow (?:roads?|lanes?|approach|streets?)", r"low bridges?", r"height restrictions?")),
+    ("parking", "civic_neighbor_friction", _words(r"parking", r"parked", r"towing", r"towed")),
+    ("road_widening", "zoning_buffer_row", _words(
+        r"road widening", r"widening", r"demolitions?", r"demolish(?:ed|es|ing)?", r"raze[ds]?", r"razing")),
+    ("buffer", "zoning_buffer_row", _words(r"buffer(?: zones?)?", r"NGT", r"wetlands?")),
+    ("land_dispute", "zoning_buffer_row", _words(
+        r"acquisitions?", r"acquire[ds]?", r"disputes?", r"disputed", r"encroach\w*",
+        # Phrase rules only: bare "illegal" (e.g. "illegal parking") is not a zoning signal.
+        r"illegal (?:buildings?|constructions?|structures?|layouts?)",
+        r"BDA", r"deeds?", r"gramathana", r"revenue land", r"khata", r"land conversion")),
+    ("flooding", "flooding_drainage", _words(
+        r"waterlog\w*", r"flood\w*", r"inundat\w*", r"rains?", r"rainfall", r"drains?", r"drainage",
+        r"rajakaluve", r"storm ?water", r"overflow\w*", r"submerg\w*")),
+    ("crime", "civic_neighbor_friction", _words(
+        # Bare "police"/"crime" are excluded: police-administration news and section
+        # labels like "Crime Files" are not site friction.
+        r"murder\w*", r"robber(?:y|ies)", r"crime (?:rates?|spikes?|waves?)", r"arrest\w*", r"attack\w*", r"accidents?",
+        r"theft", r"snatching", r"mob")),
+    ("traffic", "civic_neighbor_friction", _words(r"traffic", r"jams?", r"potholes?", r"bottlenecks?", r"congestion")),
+    ("protest_noise", "civic_neighbor_friction", _words(
+        r"protest\w*", r"noise", r"residents?", r"RWA", r"garbage", r"dump\w*")),
+    ("utility", "civic_neighbor_friction", _words(
+        r"BESCOM", r"power cuts?", r"power outages?", r"outages?", r"shutdowns?", r"tankers?", r"water supply")),
+]
+
+# Severity per intent and topic, following SPEC section 1. Unmatched text is "low".
+SEVERITY_TABLE: Dict[str, Dict[str, str]] = {
+    "warehouse": {
+        "heavy_vehicle": "high", "narrow_road": "high", "power_line": "medium", "flooding": "high",
+        "buffer": "high", "land_dispute": "medium", "road_widening": "medium", "parking": "low",
+        "crime": "medium", "traffic": "medium", "protest_noise": "medium", "utility": "medium",
+    },
+    "retail": {
+        "heavy_vehicle": "low", "narrow_road": "medium", "power_line": "low", "flooding": "medium",
+        "buffer": "medium", "land_dispute": "medium", "road_widening": "high", "parking": "high",
+        "crime": "medium", "traffic": "medium", "protest_noise": "medium", "utility": "medium",
+    },
+    "plot": {
+        "heavy_vehicle": "low", "narrow_road": "medium", "power_line": "high", "flooding": "medium",
+        "buffer": "high", "land_dispute": "high", "road_widening": "medium", "parking": "low",
+        "crime": "low", "traffic": "low", "protest_noise": "low", "utility": "medium",
+    },
+}
+
+HEADLINE_PREFIX = {
+    "zoning_buffer_row": "Land & Zoning Alert",
+    "flooding_drainage": "Civic Infrastructure & Drainage",
+    "access_infrastructure": "Access Constraint",
+    "civic_neighbor_friction": "Neighborhood Friction",
+}
+
+
+def classify_signal(text: str, intent: str) -> Tuple[str, str]:
+    """Return (category, severity) using whole-word topic rules and the intent severity table."""
+    for topic, category, pattern in TOPIC_RULES:
+        if pattern.search(text):
+            return category, SEVERITY_TABLE.get(intent, {}).get(topic, "medium")
+    return "civic_neighbor_friction", "low"
+
+
+# Directory, index or listing pages: "X - Index", "Home | X", "Contact Us - X", "X - Official Website".
+DIRECTORY_TITLE = re.compile(
+    r"(?:^|[-|–:]\s*)(?:index|home(?: ?page)?|contact(?: us)?|directory|listings?)\s*(?:$|[-|–:])"
+    r"|\bofficial (?:website|web ?site|portal)\b",
+    re.IGNORECASE,
+)
+# Business/hotel openings; only noise when the title carries no friction keyword.
+OPENING_TITLE = _words(r"opens?", r"opening", r"launch(?:es|ed)?", r"expands?", r"expansion", r"inaugurat\w*", r"unveils?")
+
+
+# Social posts: "... - Facebook", "... | LinkedIn", or a social-network URL.
+SOCIAL_TITLE = re.compile(r"[-|–]\s*(?:facebook|instagram|x|twitter|linkedin)\s*$", re.IGNORECASE)
+SOCIAL_DOMAINS = ("facebook.com", "instagram.com", "x.com", "twitter.com", "linkedin.com")
+SHORT_TITLE_WORDS = 5
+
+
+def _has_friction_keyword(text: str) -> bool:
+    return any(pattern.search(text) for _, _, pattern in TOPIC_RULES)
+
+
+def _is_social_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == d or host.endswith("." + d) for d in SOCIAL_DOMAINS)
+
+
+def is_noise_title(title: str) -> bool:
+    """True for directory/listing pages, social posts, short bare titles and promo openings."""
+    if DIRECTORY_TITLE.search(title) or SOCIAL_TITLE.search(title):
+        return True
+    if len(title.split()) <= SHORT_TITLE_WORDS or OPENING_TITLE.search(title):
+        return not _has_friction_keyword(title)
+    return False
+
+
+def is_noise(title: str, url: str = "") -> bool:
+    """Noise by title shape or because the source is a social network."""
+    return is_noise_title(title) or _is_social_url(url)
+
+
+def _explanation(category: str, clean_loc: str, corridor: Optional[str]) -> str:
     return {
-        "distance_km": dist_km,
-        "distance_label": proximity_label,
-        "proximity_tier": tier,
-    }
+        "zoning_buffer_row": f"Public record near {clean_loc} points to zoning, buffer, demolition or land-title scrutiny.",
+        "flooding_drainage": f"Monsoon drainage, waterlogging or stormwater conditions reported around {clean_loc}.",
+        "access_infrastructure": f"Vehicle access, approach-road or overhead-line constraints reported around {clean_loc}.",
+        "civic_neighbor_friction": f"Local civic, traffic, safety or neighbor friction reported around {corridor or clean_loc}.",
+    }[category]
 
 
 async def synthesize_friction_report(
@@ -50,7 +190,7 @@ async def synthesize_friction_report(
     """Synthesize raw search and news signals into maximum actionable friction cards with distance metadata."""
     hierarchy = signals_data.get("hierarchy", {})
     clean_loc = signals_data.get("locality") or locality
-    corridor = signals_data.get("corridor") or "Bengaluru"
+    corridor = signals_data.get("corridor")
     raw_signals = signals_data.get("signals", [])
 
     flags: List[Dict[str, Any]] = []
@@ -61,41 +201,24 @@ async def synthesize_friction_report(
         title = item.get("title") or ""
         snippet = item.get("snippet") or title
 
-        if not title or len(title) < 10 or url in seen_urls:
+        if not title or len(title) < 10 or url in seen_urls or is_noise(title, url):
             continue
 
         seen_urls.add(url)
-        combined_text = f"{title} {snippet}".lower()
-
-        # Classify category & severity
-        if any(k in combined_text for k in ["acquisition", "demolition", "illegal", "encroach", "dispute", "bda", "buffer", "deed"]):
-            category = "zoning_buffer_row"
-            severity = "high" if any(k in combined_text for k in ["demolition", "acquisition", "illegal"]) else "medium"
-            headline = f"Land & Zoning Alert: {title[:75]}..."
-            explanation = f"Statutory property and master plan record near {clean_loc} indicates active zoning or land regularization scrutiny."
-        elif any(k in combined_text for k in ["murder", "robbery", "crime", "police", "arrest", "attack", "accident", "protest", "mob"]):
-            category = "civic_neighbor_friction"
-            severity = "high" if any(k in combined_text for k in ["murder", "dacoit", "shoot"]) else "medium"
-            headline = f"Law & Order Incident: {title[:75]}..."
-            explanation = f"Police jurisdiction reports document local law enforcement activity, road accidents, or civic friction in the surrounding vicinity."
-        elif any(k in combined_text for k in ["waterlog", "flood", "rain", "drain", "bescom", "power", "shutdown", "tanker"]):
-            category = "flooding_drainage"
-            severity = "high" if "severe" in combined_text or intent == "warehouse" else "medium"
-            headline = f"Civic Infrastructure & Drainage: {title[:75]}..."
-            explanation = f"Monsoon drainage conditions, stormwater channels, or civic utility adjustments active in {clean_loc}."
-        elif any(k in combined_text for k in ["traffic", "jam", "pothole", "bmtc", "bottleneck", "expressway"]):
-            category = "civic_neighbor_friction"
-            severity = "medium"
-            headline = f"Transit Bottleneck: {title[:75]}..."
-            explanation = f"Road and arterial transport conditions report commuter congestion and heavy movement friction along {corridor}."
-        else:
-            category = "civic_neighbor_friction"
-            severity = "low"
-            headline = f"Neighborhood Notice: {title[:75]}..."
-            explanation = f"Local observation regarding commerce and accessibility in {clean_loc}."
+        category, severity = classify_signal(f"{title} {snippet}", intent)
+        headline = f"{HEADLINE_PREFIX[category]}: {_truncate(title)}"
+        explanation = _explanation(category, clean_loc, corridor)
 
         # Compute estimated distance from target
-        dist_meta = estimate_event_distance(clean_loc, f"{title} {snippet}", category)
+        dist_meta = estimate_event_distance(
+            clean_loc,
+            title,
+            snippet,
+            target_lat=signals_data.get("target_lat"),
+            target_lng=signals_data.get("target_lng"),
+            signal_lat=item.get("lat"),
+            signal_lng=item.get("lng"),
+        )
 
         flags.append({
             "id": f"flag-{len(flags) + 1}",
@@ -111,47 +234,23 @@ async def synthesize_friction_report(
             "proximity_tier": dist_meta["proximity_tier"],
         })
 
-    # Sort flags: closest events (< 1.5 km) first!
-    flags.sort(key=lambda x: x.get("distance_km", 99.0))
+    flags.sort(key=lambda f: (TIER_RANK[f["proximity_tier"]], SEVERITY_RANK[f["severity"]]))
+    for i, flag in enumerate(flags, start=1):
+        flag["id"] = f"flag-{i}"
 
-    # Fallback to realistic flags if search was sparse
-    if len(flags) < 3:
-        flags.extend([
-            {
-                "id": f"flag-{len(flags) + 1}",
-                "category": "civic_neighbor_friction",
-                "severity": "low",
-                "headline": f"Road Clearance & Turning Radius in {clean_loc}",
-                "explanation": f"Internal approach lanes in {clean_loc} require on-ground turning radius checks for commercial vehicles.",
-                "quote": f"Residential layout cross roads in {clean_loc} experience parked commuter vehicle congestion.",
-                "source_title": "BBMP Ward Infrastructure Review",
-                "url": "https://bbmp.gov.in",
-                "distance_km": 0.4,
-                "distance_label": "~0.4 km away (Immediate Vicinity)",
-                "proximity_tier": "hyperlocal",
-            },
-            {
-                "id": f"flag-{len(flags) + 1}",
-                "category": "flooding_drainage",
-                "severity": "low",
-                "headline": f"Stormwater Runoff & Gutter Clearance in {clean_loc}",
-                "explanation": f"Check roadside feeder desilting status before high-intensity monsoon showers.",
-                "quote": "Zonal desilting works scheduled across peripheral wards.",
-                "source_title": "BBMP Monsoon Preparedness Circular",
-                "url": "https://timesofindia.indiatimes.com/city/bengaluru",
-                "distance_km": 0.8,
-                "distance_label": "~0.8 km away (Immediate Vicinity)",
-                "proximity_tier": "hyperlocal",
-            },
-        ])
-
-    high_count = sum(1 for f in flags if f.get("severity") == "high")
-    overall_risk = "high" if high_count >= 2 else "medium" if len(flags) >= 3 else "low"
-
-    summary = (
-        f"Deep radar scan for {clean_loc} uncovered {len(flags)} civic, crime, road, and title friction points, "
-        f"organized by distance from your search target."
-    )
+    high_count = sum(1 for f in flags if f["severity"] == "high")
+    if not flags:
+        overall_risk = "low"
+        summary = (
+            f"Few public signals were found for {clean_loc}. That is not proof of a clean site; "
+            f"verify on the ground before committing."
+        )
+    else:
+        overall_risk = "high" if high_count >= 2 else "medium" if high_count or len(flags) >= 3 else "low"
+        summary = (
+            f"Radar scan for {clean_loc} found {len(flags)} public friction signal(s), "
+            f"ordered by how specifically each source mentions the site."
+        )
 
     return {
         "location": locality,

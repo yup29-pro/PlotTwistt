@@ -13,6 +13,8 @@ import {
   Share2
 } from 'lucide-react';
 
+const isHttpUrl = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
+
 export default function ReceiptDrawer({ flag, onClose }) {
   // Close drawer on Escape key
   useEffect(() => {
@@ -355,30 +357,32 @@ export default function ReceiptDrawer({ flag, onClose }) {
             gap: '12px',
           }}
         >
-          <a
-            href={flag.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              background: 'linear-gradient(135deg, #0284c7, #2563eb)',
-              color: '#ffffff',
-              padding: '12px 16px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 600,
-              textDecoration: 'none',
-              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
-              transition: 'all 0.15s',
-            }}
-          >
-            <span>Open Source Gazette / Document</span>
-            <ExternalLink size={16} />
-          </a>
+          {isHttpUrl(flag.url) && (
+            <a
+              href={flag.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                color: '#ffffff',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 600,
+                textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+                transition: 'all 0.15s',
+              }}
+            >
+              <span>Open Source Gazette / Document</span>
+              <ExternalLink size={16} />
+            </a>
+          )}
 
           <button
             onClick={onClose}

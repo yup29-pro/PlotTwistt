@@ -1,11 +1,16 @@
 """File cache, demo presets, and safe fallbacks for PlotTwistt."""
 
 from __future__ import annotations
+import hashlib
 import json
+import logging
+import os
 import re
-from datetime import datetime, timezone
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("plottwistt.cache")
 
 CACHE_DIR = Path(__file__).resolve().parent / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -168,53 +173,56 @@ DEMO_PRESET_ANALYSES: Dict[str, Dict[str, Any]] = {
 }
 
 
-def get_frontend_compatible_fallback(locality: str, intent: str) -> Dict[str, Any]:
-    """Return structured fallback matching the exact format expected by the frontend."""
+def get_demo_analysis(locality: str) -> Optional[Dict[str, Any]]:
+    """Return curated demo data only when the locality names a known demo area."""
     loc_lower = locality.lower()
     for key, data in DEMO_PRESET_ANALYSES.items():
         if key in loc_lower:
             return data
-    # Default to bellandur profile if unrecognized
-    return DEMO_PRESET_ANALYSES["bellandur"]
+    return None
 
 
 def make_cache_slug(locality: str, intent: str) -> str:
-    """Generate a clean filesystem slug for caching responses."""
-    locality_clean = re.sub(r"[^a-zA-Z0-9]+", "-", locality.lower()).strip("-")
-    intent_clean = intent.lower()
-    return f"{locality_clean}_{intent_clean}"
+    """Filesystem-safe cache key: a readable ASCII part plus a hash of the normalised locality.
+
+    The hash keeps localities that share (or have no) ASCII characters, e.g. Kannada
+    names, from colliding on one cache file.
+    """
+    normalised = " ".join(locality.casefold().split())
+    readable = re.sub(r"[^a-z0-9]+", "-", normalised).strip("-")[:60] or "loc"
+    digest = hashlib.sha256(normalised.encode("utf-8")).hexdigest()[:10]
+    return f"{readable}-{digest}_{intent.lower()}"
+
+
+def _cache_file(locality: str, intent: str) -> Path:
+    return CACHE_DIR / f"{make_cache_slug(locality, intent)}.json"
+
+
+def cache_ttl_hours() -> float:
+    try:
+        return float(os.getenv("CACHE_TTL_HOURS", "24"))
+    except ValueError:
+        return 24.0
 
 
 def get_cached_response(locality: str, intent: str) -> Optional[Dict[str, Any]]:
-    """Retrieve cached response if present."""
-    slug = make_cache_slug(locality, intent)
-    cache_file = CACHE_DIR / f"{slug}.json"
-    if not cache_file.exists():
-        return None
+    """Return the cached response for (locality, intent) if younger than CACHE_TTL_HOURS."""
+    cache_file = _cache_file(locality, intent)
     try:
+        age_seconds = time.time() - cache_file.stat().st_mtime
+        if age_seconds > cache_ttl_hours() * 3600:
+            return None
         with open(cache_file, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except (OSError, ValueError):
         return None
 
 
-def save_cached_response(data: Dict[str, Any]) -> None:
-    """Save response to cache."""
+def save_cached_response(locality: str, intent: str, data: Dict[str, Any]) -> None:
+    """Save a live response under the (locality, intent) key."""
     try:
-        locality = data.get("location", "unknown")
-        intent = data.get("intent", "warehouse")
-        slug = make_cache_slug(locality, intent)
-        cache_file = CACHE_DIR / f"{slug}.json"
-        with open(cache_file, "w", encoding="utf-8") as f:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(_cache_file(locality, intent), "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
-
-
-def get_fallback_response(request: Any) -> Dict[str, Any]:
-    """Legacy helper."""
-    loc = getattr(request, "location", "Bellandur")
-    intent = getattr(request, "intent", "warehouse")
-    if not isinstance(loc, str):
-        loc = getattr(loc, "locality", "Bellandur")
-    return get_frontend_compatible_fallback(str(loc), str(intent))
+    except OSError as exc:
+        logger.warning("Could not write cache file (%s)", type(exc).__name__)

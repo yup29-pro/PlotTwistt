@@ -42,7 +42,7 @@ export default function App() {
     lng: SAMPLE_PRESETS[0].lng,
   });
   const [intent, setIntent] = useState('warehouse');
-  const [analysis, setAnalysis] = useState(SAMPLE_ANALYSES['bellandur-buffer']);
+  const [analysis, setAnalysis] = useState({ ...SAMPLE_ANALYSES['bellandur-buffer'], data_source: 'demo' });
   const [isLoading, setIsLoading] = useState(false);
   const [errorNotice, setErrorNotice] = useState(null);
   const [useSampleData, setUseSampleData] = useState(false);
@@ -56,7 +56,7 @@ export default function App() {
 
   const checkBackendHealth = async () => {
     try {
-      const res = await fetch('http://localhost:8000/health', { method: 'GET' });
+      const res = await fetch('/api/health', { method: 'GET' });
       if (res.ok) {
         setBackendConnected(true);
       } else {
@@ -81,14 +81,15 @@ export default function App() {
     if (useSampleData) {
       setTimeout(() => {
         const sample = getSampleAnalysis(selectedLocation, intent);
-        setAnalysis(sample);
+        setAnalysis(sample ? { ...sample, data_source: 'demo' } : null);
+        if (!sample) setErrorNotice('No sample data exists for this location.');
         setIsLoading(false);
       }, 450);
       return;
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/analyze', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -100,7 +101,13 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned HTTP ${response.status}`);
+        // The backend answered (e.g. 503 no data, 429 rate limit): show its message, not sample data.
+        const body = await response.json().catch(() => ({}));
+        const detail = typeof body.detail === 'string' ? body.detail : `Server returned HTTP ${response.status}`;
+        setBackendConnected(true);
+        setErrorNotice(detail);
+        setAnalysis(null);
+        return;
       }
 
       const data = await response.json();
@@ -109,11 +116,14 @@ export default function App() {
     } catch (err) {
       console.warn('Backend request failed; falling back to offline radar sample data:', err);
       setBackendConnected(false);
-      setErrorNotice(
-        'Backend server (localhost:8000) is unreachable. Automatically loaded verified offline sample data for this location.'
-      );
+      // Offline sample data only exists for the demo localities.
       const sample = getSampleAnalysis(selectedLocation, intent);
-      setAnalysis(sample);
+      setErrorNotice(
+        sample
+          ? 'Backend server is unreachable. Showing offline sample data, not live results for this location.'
+          : 'Backend server is unreachable and no offline sample data exists for this location.'
+      );
+      setAnalysis(sample ? { ...sample, data_source: 'demo' } : null);
     } finally {
       setIsLoading(false);
     }
@@ -315,6 +325,28 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {analysis?.data_source === 'demo' && (
+        <div
+          role="status"
+          style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            borderBottom: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#fecaca',
+            padding: '8px 20px',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            zIndex: 1050,
+          }}
+        >
+          <AlertCircle size={15} color="#ef4444" />
+          <span>
+            <strong>DEMO DATA</strong> &mdash; these flags are curated sample data, not live search results for this site.
+          </span>
+        </div>
+      )}
 
       {/* Optional Toast / Warning Alert */}
       {errorNotice && (
