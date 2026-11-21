@@ -34,7 +34,8 @@ def fake_get(monkeypatch):
             state["fail_queries"] -= 1
             raise httpx.ConnectError(f"boom {url}?api_key={params['api_key']}")
         if params["engine"] == "google_news":
-            return _response({"news_results": [{"title": "Bellandur news item", "link": "https://e.com/n"}]})
+            news = state.get("news") or [{"title": "Bellandur news item", "link": "https://e.com/n"}]
+            return _response({"news_results": news})
         organic = state.get("organic") or [{"title": "Bellandur web item", "link": "https://e.com/w"}]
         return _response({"organic_results": organic})
 
@@ -188,3 +189,12 @@ def test_signals_without_http_url_are_dropped(fake_get, link):
     result = collect()
     organic = [s for s in result["signals"] if s["category"] != "civic_incident"]
     assert organic == []
+
+
+def test_up_to_eight_news_items_per_news_query(fake_get):
+    fake_get["news"] = [{"title": f"Bellandur news {i}", "link": f"https://e.com/n{i}"} for i in range(10)]
+    result = collect()
+    news = [s for s in result["signals"] if s["category"] == "civic_incident"]
+    assert len(news) == 2 * 8  # two google_news queries, 8 items each
+    web = [s for s in result["signals"] if s["category"] != "civic_incident"]
+    assert len(web) == 3  # web searches unchanged

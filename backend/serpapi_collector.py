@@ -24,6 +24,7 @@ logger = logging.getLogger("plottwistt.collector")
 SERPAPI_URL = "https://serpapi.com/search.json"
 LOOKUP_TIMEOUT = 8.0
 SEARCH_TIMEOUT = 10.0
+NEWS_RESULTS_PER_QUERY = 8
 
 # httpx logs full request URLs (including api_key) at INFO; keep it quiet.
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -212,7 +213,7 @@ async def _run_search(
 
     signals: List[Dict[str, Any]] = []
     if st["engine"] == "google_news":
-        for it in data.get("news_results", [])[:4]:
+        for it in data.get("news_results", [])[:NEWS_RESULTS_PER_QUERY]:
             src = it.get("source")
             src_name = src.get("name", "Local News") if isinstance(src, dict) else str(src or "News")
             signals.append({
