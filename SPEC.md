@@ -75,7 +75,7 @@ Severity is assigned per intent from the sensitivities in section 1 (e.g. floodi
 }
 ```
 - `overall_risk` is computed from real flags only. With 0 flags it is `low` and the summary says few public signals were found. No filler flags are ever added.
-- `friction_score` (0–100) = min(100, Σ weight × multiplier). Weights: high 25, medium 12, low 4. Multipliers: 1.0 for geodata and "Names locality", 0.6 for "Mentions locality", 0.3 for "Area-level".
+- `friction_score` (0–100) = round(100 × (1 − e^(−total / 80))), where total = Σ weight × multiplier, so the score saturates smoothly instead of capping at 100. Weights: high 25, medium 12, low 4. Multipliers: 1.0 for geodata and "Names locality", 0.6 for "Mentions locality", 0.3 for "Area-level".
 - `verdict`: `Low` (0–30), `Moderate` (31–70), `High` (71–100).
 - `lake_buffer_breach`: `true` when OpenStreetMap puts a lake within 75 m of the pin (the UI draws a red 75 m ring).
 - `data_source`: `live` (fresh SerpApi results), `cache` (served from the file cache), `demo` (curated sample data, shown with a DEMO banner).
