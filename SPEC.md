@@ -111,7 +111,7 @@ or
 
 **Behaviour**
 1. Unless `refresh=true`, a cached result for (locality, intent) younger than `CACHE_TTL_HOURS` (default 24) is returned with `data_source: "cache"`.
-2. Otherwise SerpApi is queried (5 searches in parallel). Successful results are cached and returned with `data_source: "live"`; `degraded: true` if some searches failed.
+2. Otherwise SerpApi is queried (5 searches in parallel). Results are returned with `data_source: "live"` (`degraded: true` if some searches failed). Only complete results with at least one flag are cached; degraded or empty results are retried next time.
 3. If collection fails entirely: a known demo locality (Bellandur, Peenya, Indiranagar, Sarjapur) returns demo data with `data_source: "demo"`; any other locality returns **503**.
 
 **Responses**

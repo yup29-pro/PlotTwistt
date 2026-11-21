@@ -162,5 +162,7 @@ async def analyze_location(
         degraded=raw_signals.get("failed_searches", 0) > 0,
         analyzed_at=_utc_now(),
     )
-    cache.save_cached_response(locality, intent, result)
+    # Only cache complete, non-empty results so a partial or empty scan is retried next time.
+    if not result["degraded"] and result["total_flags"] > 0:
+        cache.save_cached_response(locality, intent, result)
     return result

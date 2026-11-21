@@ -162,3 +162,26 @@ def test_cache_slug_normalises_typos_case_and_spacing():
 
     assert make_cache_slug("Madagi Road", "plot") == make_cache_slug("  magadi   road ", "plot")
     assert make_cache_slug("Magadi Road", "plot") != make_cache_slug("Magadi Road", "retail")
+
+
+def test_degraded_results_are_not_cached(client, collector, tmp_path):
+    from backend.tests.conftest import make_signals
+
+    collector["result"] = make_signals(failed=2)
+    client.post("/api/analyze", json=BELLANDUR)
+    res = client.post("/api/analyze", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+    assert list(tmp_path.glob("*.json")) == []
+
+
+def test_zero_flag_results_are_not_cached(client, collector, tmp_path):
+    from backend.tests.conftest import make_signals
+
+    collector["result"] = make_signals(signals=[])
+    first = client.post("/api/analyze", json=BELLANDUR).json()
+    assert first["total_flags"] == 0
+    res = client.post("/api/analyze", json=BELLANDUR).json()
+    assert res["data_source"] == "live"
+    assert collector["calls"] == 2
+    assert list(tmp_path.glob("*.json")) == []
