@@ -14,27 +14,30 @@ from urllib.parse import urlparse
 from backend.serpapi_collector import haversine_distance
 
 HEADLINE_MAX = 75
+# Tier values are unchanged for the frontend; labels describe where the locality appears.
 TIER_LABELS = {
-    "hyperlocal": "Mentions locality",
-    "corridor": "Mentions corridor",
-    "district": "Area-level",
+    "hyperlocal": "Names locality",  # in the title
+    "corridor": "Mentions locality",  # only in the snippet
+    "district": "Area-level",  # absent, or only city/state names
 }
-# City/state names are too broad to count as a "corridor" mention.
+# City/state names never count as naming the locality.
 GENERIC_PLACES = {"bengaluru", "bangalore", "karnataka", "india"}
 TIER_RANK = {"hyperlocal": 0, "corridor": 1, "district": 2}
 SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
 
 
-def _mentions(place: Optional[str], text_lower: str) -> bool:
+def _mentions(place: Optional[str], text: str) -> bool:
     if not place:
         return False
-    return any(word in text_lower for word in place.lower().split() if len(word) > 3)
+    text_lower = text.lower()
+    words = [w for w in place.lower().split() if len(w) > 3 and w not in GENERIC_PLACES]
+    return any(word in text_lower for word in words)
 
 
 def estimate_event_distance(
     target_locality: str,
-    text: str,
-    corridor: Optional[str] = None,
+    title: str,
+    snippet: str = "",
     target_lat: Optional[float] = None,
     target_lng: Optional[float] = None,
     signal_lat: Optional[float] = None,
@@ -46,10 +49,9 @@ def estimate_event_distance(
         tier = "hyperlocal" if dist_km < 1.5 else "corridor" if dist_km < 4.0 else "district"
         return {"distance_km": dist_km, "distance_label": f"{dist_km} km from target", "proximity_tier": tier}
 
-    text_lower = text.lower()
-    if _mentions(target_locality, text_lower):
+    if _mentions(target_locality, title):
         tier = "hyperlocal"
-    elif corridor and corridor.lower() not in GENERIC_PLACES and _mentions(corridor, text_lower):
+    elif _mentions(target_locality, snippet):
         tier = "corridor"
     else:
         tier = "district"
@@ -210,8 +212,8 @@ async def synthesize_friction_report(
         # Compute estimated distance from target
         dist_meta = estimate_event_distance(
             clean_loc,
-            f"{title} {snippet}",
-            corridor=corridor,
+            title,
+            snippet,
             target_lat=signals_data.get("target_lat"),
             target_lng=signals_data.get("target_lng"),
             signal_lat=item.get("lat"),

@@ -19,19 +19,41 @@ def test_distance_is_none_without_coordinates():
     flags = run([sig("Bellandur residents protest garbage dumping")])["flags"]
     assert flags[0]["distance_km"] is None
     assert flags[0]["proximity_tier"] == "hyperlocal"
-    assert flags[0]["distance_label"] == "Mentions locality"
+    assert flags[0]["distance_label"] == "Names locality"
 
 
-def test_tier_labels_for_corridor_and_area():
+def test_tier_names_locality_when_in_title():
+    flag = run([sig("Bellandur residents protest garbage", snippet="Residents gathered on Sunday.")])["flags"][0]
+    assert (flag["proximity_tier"], flag["distance_label"]) == ("hyperlocal", "Names locality")
+
+
+def test_tier_mentions_locality_when_only_in_snippet():
+    flag = run([sig("Residents protest garbage dumping", snippet="Protest held near Bellandur lake.")])["flags"][0]
+    assert (flag["proximity_tier"], flag["distance_label"]) == ("corridor", "Mentions locality")
+
+
+def test_tier_area_level_when_locality_absent():
+    flag = run([sig("Bengaluru Traffic Alert: Avoid THESE Routes For Congestion",
+                    snippet="Commuters across Bengaluru, Karnataka face jams.")])["flags"][0]
+    assert (flag["proximity_tier"], flag["distance_label"]) == ("district", "Area-level")
+
+
+def test_tier_area_level_when_target_is_only_a_city():
+    data = make_signals([sig("Bengaluru residents protest garbage dumping")])
+    data["locality"] = "Bengaluru"
+    flag = asyncio.run(synthesize_friction_report("Bengaluru", "plot", data))["flags"][0]
+    assert flag["proximity_tier"] == "district"
+
+
+def test_city_wide_piece_sorted_below_named_locality():
     flags = run([
-        sig("Outer Ring Road residents protest garbage", url="https://e.com/1"),
-        sig("Bengaluru city residents protest garbage", url="https://e.com/2"),
+        sig("Bengaluru Traffic Alert: Avoid THESE Routes For Congestion", url="https://e.com/city",
+            snippet="Commuters across Bengaluru face jams."),
+        sig("Garbage piles up in a residential lane", url="https://e.com/snippet",
+            snippet="Residents of Bellandur complain."),
+        sig("Bellandur residents protest garbage dumping", url="https://e.com/title"),
     ])["flags"]
-    by_url = {f["url"]: f for f in flags}
-    assert by_url["https://e.com/1"]["distance_label"] == "Mentions corridor"
-    assert by_url["https://e.com/1"]["proximity_tier"] == "corridor"
-    assert by_url["https://e.com/2"]["distance_label"] == "Area-level"
-    assert by_url["https://e.com/2"]["proximity_tier"] == "district"
+    assert [f["url"] for f in flags] == ["https://e.com/title", "https://e.com/snippet", "https://e.com/city"]
 
 
 def test_distance_computed_from_real_coordinates():

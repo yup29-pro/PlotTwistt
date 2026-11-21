@@ -43,12 +43,16 @@ Severity is assigned per intent from the sensitivities in section 1 (e.g. floodi
   "source_title": "Deccan Herald - Bellandur lake overflow floods Outer Ring Road",
   "url": "https://www.deccanherald.com/...",
   "distance_km": null,
-  "distance_label": "Mentions locality",
+  "distance_label": "Names locality",
   "proximity_tier": "hyperlocal"
 }
 ```
-- `distance_km` is only set when the source signal carries real coordinates (haversine from the target). Otherwise it is `null` and the tier comes from text mentions: `hyperlocal` ("Mentions locality"), `corridor` ("Mentions corridor"), `district` ("Area-level").
-- Flags are sorted by tier (hyperlocal first), then severity (high first).
+- `distance_km` is only set when the source signal carries real coordinates (haversine from the target; tiers <1.5 km / <4 km / beyond). Otherwise it is `null` and the tier says where the locality appears in the source:
+  - `hyperlocal` – "Names locality": the locality is in the title.
+  - `corridor` – "Mentions locality": the locality is only in the snippet.
+  - `district` – "Area-level": the locality is not found, or the source only names the city/state (Bengaluru, Bangalore, Karnataka, India).
+- Flags are sorted by tier (hyperlocal first), then severity (high first), so city-wide pieces sink to the bottom.
+- Noise is dropped before classification: directory/index/listing pages, social posts (Facebook, Instagram, X/Twitter, LinkedIn titles or URLs), titles of five words or fewer with no friction keyword, and business openings with no friction keyword.
 - `url` is the publisher link. The frontend only renders it as a link if it starts with `http://` or `https://`.
 
 ### AnalyzeResponse
