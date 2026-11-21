@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 from backend.serpapi_collector import haversine_distance
 
@@ -85,8 +86,9 @@ TOPIC_RULES: List[Tuple[str, str, "re.Pattern[str]"]] = [
         r"waterlog\w*", r"flood\w*", r"inundat\w*", r"rains?", r"rainfall", r"drains?", r"drainage",
         r"rajakaluve", r"storm ?water", r"overflow\w*", r"submerg\w*")),
     ("crime", "civic_neighbor_friction", _words(
-        # Bare "police" is excluded: police-administration news (transfers, restructuring) is not site friction.
-        r"murder\w*", r"robber(?:y|ies)", r"crimes?", r"arrest\w*", r"attack\w*", r"accidents?",
+        # Bare "police"/"crime" are excluded: police-administration news and section
+        # labels like "Crime Files" are not site friction.
+        r"murder\w*", r"robber(?:y|ies)", r"crime (?:rates?|spikes?|waves?)", r"arrest\w*", r"attack\w*", r"accidents?",
         r"theft", r"snatching", r"mob")),
     ("traffic", "civic_neighbor_friction", _words(r"traffic", r"jams?", r"potholes?", r"bottlenecks?", r"congestion")),
     ("protest_noise", "civic_neighbor_friction", _words(
@@ -140,13 +142,33 @@ DIRECTORY_TITLE = re.compile(
 OPENING_TITLE = _words(r"opens?", r"opening", r"launch(?:es|ed)?", r"expands?", r"expansion", r"inaugurat\w*", r"unveils?")
 
 
+# Social posts: "... - Facebook", "... | LinkedIn", or a social-network URL.
+SOCIAL_TITLE = re.compile(r"[-|–]\s*(?:facebook|instagram|x|twitter|linkedin)\s*$", re.IGNORECASE)
+SOCIAL_DOMAINS = ("facebook.com", "instagram.com", "x.com", "twitter.com", "linkedin.com")
+SHORT_TITLE_WORDS = 5
+
+
+def _has_friction_keyword(text: str) -> bool:
+    return any(pattern.search(text) for _, _, pattern in TOPIC_RULES)
+
+
+def _is_social_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == d or host.endswith("." + d) for d in SOCIAL_DOMAINS)
+
+
 def is_noise_title(title: str) -> bool:
-    """True for directory/index/listing pages and promotional openings without friction keywords."""
-    if DIRECTORY_TITLE.search(title):
+    """True for directory/listing pages, social posts, short bare titles and promo openings."""
+    if DIRECTORY_TITLE.search(title) or SOCIAL_TITLE.search(title):
         return True
-    if OPENING_TITLE.search(title):
-        return not any(pattern.search(title) for _, _, pattern in TOPIC_RULES)
+    if len(title.split()) <= SHORT_TITLE_WORDS or OPENING_TITLE.search(title):
+        return not _has_friction_keyword(title)
     return False
+
+
+def is_noise(title: str, url: str = "") -> bool:
+    """Noise by title shape or because the source is a social network."""
+    return is_noise_title(title) or _is_social_url(url)
 
 
 def _explanation(category: str, clean_loc: str, corridor: Optional[str]) -> str:
@@ -177,7 +199,7 @@ async def synthesize_friction_report(
         title = item.get("title") or ""
         snippet = item.get("snippet") or title
 
-        if not title or len(title) < 10 or url in seen_urls or is_noise_title(title):
+        if not title or len(title) < 10 or url in seen_urls or is_noise(title, url):
             continue
 
         seen_urls.add(url)
