@@ -104,3 +104,6 @@ uvicorn backend.main:app --reload --port 8000
 - **Smart Response Caching**: Results are cached in `backend/cache/<slug>.json` to ensure zero token wastage and instant replay during live demos.
 - **Fail-Safe Fallback**: If external API keys expire, hit quota limits, or network drops, `backend/cache.py` automatically produces structured demo responses matching the `SPEC.md` contract with realistic friction points and receipt citations.
 
+
+## Showcasing - OFF CAMPUS BENGALURU
+-- **CODE - J99W7V**
